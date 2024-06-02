@@ -1,2 +1,2 @@
-# Joint Channel Estimation and Parallel Interference Cancellation
+# Joint CE and PIC
 This repository offers a joint channel estimation and parallel interference cancellation method across platforms
