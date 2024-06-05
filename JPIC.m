@@ -2,8 +2,10 @@ classdef JPIC < handle
     % constants
     properties(Constant)
         % MOD (modulation)
-        MOD_MIMO = 1;
-        MOD_OTFS = 2;
+        MOD_MIMO = 10;
+        MOD_OTFS = 20;          % perfect csi
+        MOD_OTFS_EM = 21;
+        MOD_OTFS_SP = 22;
         % CE (channel estimation)
         CE_LS = 1;
         % SD (symbol detection)
