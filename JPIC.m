@@ -66,4 +66,9 @@ classdef JPIC < handle
         iter_num = 10                       % maximal iteration
         iter_diff_min = eps;                % the minimal difference between 2 adjacent iterations
     end
+    methods
+        %{
+        constructor
+        %}
+    end
 end
