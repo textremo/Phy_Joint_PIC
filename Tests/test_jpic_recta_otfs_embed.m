@@ -57,4 +57,4 @@ jpic = JPIC(constel);
 %% Tests - Recta - OTFS(Embed)
 jpic.setPul2Recta();
 jpic.setMod2OtfsEM(M, N, "Xp", Xp, "XdLocs", XdLocs);
-jpic.detect(Y_DD, No, "sym_map", true);
+[x, H_DD] = jpic.detect(Y_DD, No, "sym_map", true);

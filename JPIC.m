@@ -231,7 +231,7 @@ classdef JPIC < handle
         @No:          the noise (linear) power
         @sym_map:     false by default. If true, the output will be mapped to the constellation
         %}
-        function x = detect(self, Y_DD, No, varargin)
+        function [x, H_DD] = detect(self, Y_DD, No, varargin)
             % register optional inputs 
             inPar = inputParser;
             addParameter(inPar,"sym_map", false, @(x) isscalar(x)&islogical(x));
