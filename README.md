@@ -1,5 +1,5 @@
-# Joint CE and PIC
-This repository offers a joint channel estimation and parallel interference cancellation method across platforms
+# Joint PIC
+This repository offers a joint channel estimation and symbol detection implementing the parallel interference cancellation method across platforms.
 
 ## How to install
 * Install through `Matlab`
