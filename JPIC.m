@@ -73,6 +73,7 @@ classdef JPIC < handle
         iter_diff_min           = eps;      % the minimal difference between 2 adjacent iterations 
         % OTFS configuration
         sig_len = 0;
+        data_len = 0;
         M = 0;                              % the subcarrier number
         N = 0;                              % the timeslot number
         Xp = [];                            % pilots values (a matrix)
@@ -227,11 +228,13 @@ classdef JPIC < handle
 
         %{
         detect
-        @Y_DD:        the received signal in the delay Doppler domain
-        @No:          the noise (linear) power
-        @sym_map:     false by default. If true, the output will be mapped to the constellation
+        @Y_DD:          the received signal in the delay Doppler domain
+        @lmax:          the maximal delay index
+        @kmax:          the maximal Doppler index
+        @No:            the noise (linear) power
+        @sym_map(opt):  false by default. If true, the output will be mapped to the constellation
         %}
-        function [x, H_DD] = detect(self, Y_DD, No, varargin)
+        function [x, H_DD] = detect(self, Y_DD, lmax, kmax, No, varargin)
             % register optional inputs 
             inPar = inputParser;
             addParameter(inPar,"sym_map", false, @(x) isscalar(x)&islogical(x));
@@ -307,14 +310,57 @@ classdef JPIC < handle
             for iter_id = 1:self.iter_num
                 % CE
                 X = Xe + self.Xp;
+                Phi = self.buildPhi(X, lmax, kmax);
                 
-
                 
 
                 % SD
             end
         end
+    end
 
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Auxiliary Methods
+    methods
+        %{
+        build Phi - the channel estimation matrix
+        @X:     the Tx matrix in DD domain ([batch_size], doppler, delay)
+        @lmax:  the maximal delay
+        @kmax:  the maximal Doppler
+        %}
+        function Phi = buildPhi(self, X, lmax, kmax)
+            pmax = (lmax+1)*(2*kmax+1);                 % the number of all possible paths
+            lis = kron(0:lmax, ones(1, 2*kmax + 1));    % the delays on all possible paths
+            kis = repmat(-kmax:kmax, 1, lmax+1);        % the dopplers on all possible paths
+            Phi = zeros(self.sig_len, pmax);            % the return matrix
+            for yk = 1:self.N
+                for yl = 1:self.M
+                    Phi_ri = (yk - 1)*self.M + yl;      % row id in Phi
+                    for p_id = 1:pmax
+                        % path delay and doppler
+                        li = lis(p_id);
+                        ki = kis(p_id);
+                        % x(k, l)_
+                        xl = yl - li;
+                        if yl-1 < li
+                            xl = xl + self.M;
+                        end
+                        xk = mod(yk - 1 - ki, self.N) + 1;
+                        % exponential part (pss_beta)
+                        if self.pulse_type == self.PUL_BIORT
+                            pss_beta = exp(-2j*pi*li*ki/self.M/self.N);
+                        elseif self.pulse_type == self.PUL_RECTA
+                            pss_beta = exp(2j*pi*(yl - li - 1)*ki/self.M/self.N); % here, you must use `yl-li-1` instead of `xl-1` or there will be an error
+                            if yl-1 < li
+                                pss_beta = pss_beta*exp(-2j*pi*(xk-1)/self.N);
+                            end
+                        end
+                        % assign value
+                        Phi(Phi_ri, p_id) = X(xk, xl)*pss_beta;
+                    end
+                end
+            end  
+        end
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -340,6 +386,7 @@ classdef JPIC < handle
                 self.N = N;
             end
             self.sig_len = N*M;
+            self.data_len = N*M;
             % opt
             inPar = inputParser;
             addParameter(inPar,"Xp", [], @(x) isempty(x)|ismatrix(x)&isnumeric(x));
@@ -366,9 +413,11 @@ classdef JPIC < handle
                 elseif XdLocsM ~= self.M
                     error("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
                 end
-                self.sig_len = M*N - sum(self.XdLocs, "all");
+                self.data_len = M*N - sum(self.XdLocs, "all");
             end
         end
+
+        
 
         %{
         build the ideal pulse DD channel (callable after modulate)
