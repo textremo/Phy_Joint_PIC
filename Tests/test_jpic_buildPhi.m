@@ -45,14 +45,10 @@ Xp = rg.getPilotsMat();
 % channel - ideal
 otfs = OTFS();
 otfs.setPulse2Recta();
-% his = [-0.245001294484229 + 0.190566910093579i	-0.0966735321794913 - 0.0195910978032867i	0.159574806792314 - 0.0563555055791835i	0.299959634256755 - 0.0628175424162719i	-0.322634497319953 - 0.0874996333904274i	0.363920822533598 + 0.00665269873273877i];
-% lis = [0,0,0,1,1,1];
-% kis = [-1,0,1,-1,0,1];
-% otfs.setChannel(his, lis, kis);
-his = [-0.245001294484229 + 0.190566910093579i];
-lis = [1];
-kis = [-1];
-otfs.setChannelExtra(his, lis, kis);
+his = [-0.245001294484229 + 0.190566910093579i	-0.0966735321794913 - 0.0195910978032867i	0.159574806792314 - 0.0563555055791835i	0.299959634256755 - 0.0628175424162719i	-0.322634497319953 - 0.0874996333904274i	0.363920822533598 + 0.00665269873273877i];
+lis = [0,0,0,1,1,1];
+kis = [-1,0,1,-1,0,1];
+otfs.setChannel(his, lis, kis);
 [his_acc, lis_acc, kis_acc] = otfs.getCSI();
 otfs.modulate(rg);
 otfs.passChannel(0);
@@ -67,12 +63,9 @@ jpic = JPIC(constel);
 jpic.setPul2Recta();
 jpic.setMod2OtfsEM(M, N, "Xp", Xp, "XdLocs", XdLocs);
 Phi = jpic.buildPhi(X, lmax, kmax);
-% h = [his, zeros(1, pmax - 1)].';
-h = [0,0,0,his, zeros(1, pmax - 4)].';
-ls = kron(0:lmax, ones(1, 2*kmax + 1)).';    % the delays on all possible paths
-ks = repmat(-kmax:kmax, 1, lmax+1).';        % the dopplers on all possible paths
+h = [his, zeros(1, pmax - length(his))].';
 yDDe = Phi*h;
-yDD_diff = yDD - yDDe;
-yDD_times = yDD./yDDe;
-he = inv(Phi'*Phi)*Phi'*yDD;
-Y_DD_diff = reshape(yDD_diff, M, N).';
+yDD_diff = abs(yDD - yDDe);
+h_diff = abs(inv(Phi'*Phi)*Phi'*yDD - h);
+assert(max(yDD_diff) < 1e-13);
+assert(max(h_diff) < 1e-13);
