@@ -381,6 +381,8 @@ classdef JPIC < handle
             pmax = (lmax+1)*(2*kmax+1);                 % the number of all possible paths
             lis = kron(0:lmax, ones(1, 2*kmax + 1));    % the delays on all possible paths
             kis = repmat(-kmax:kmax, 1, lmax+1);        % the dopplers on all possible paths
+            % filter the path gains
+            his(abs(his) < abs(thres)) = 0;
             % build the channel in DD domain
             switch self.pulse_type
                 case self.PUL_BIORT
