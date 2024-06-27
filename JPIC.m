@@ -361,6 +361,36 @@ classdef JPIC < handle
                 end
             end  
         end
+
+        %{
+        build Hdd
+        @his: the path gains
+        @lmax:  the maximal delay
+        @kmax:  the maximal Doppler
+        @thres(opt): the threshold of a path (default 0)
+        %}
+        function Hdd = buildHdd(self, his, lmax, kmax, varargin)
+            % register optional inputs 
+            inPar = inputParser;
+            addParameter(inPar,"thres", 0, @(x) isscalar(x)&isnumeric(x));
+            inPar.KeepUnmatched = true;
+            inPar.CaseSensitive = false;
+            parse(inPar, varargin{:});
+            thres = inPar.Results.thres;
+            % other inputs
+            pmax = (lmax+1)*(2*kmax+1);                 % the number of all possible paths
+            lis = kron(0:lmax, ones(1, 2*kmax + 1));    % the delays on all possible paths
+            kis = repmat(-kmax:kmax, 1, lmax+1);        % the dopplers on all possible paths
+            % build the channel in DD domain
+            switch self.pulse_type
+                case self.PUL_BIORT
+                    Hdd = self.buildOtfsBiortDDChannel(pmax, his, lis, kis);
+                case self.PUL_RECTA
+                    Hdd = self.buildOtfsRectaDDChannel(pmax, his, lis, kis);
+                otherwise
+                    error("The pulse type is not recognised.");
+            end
+        end
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -413,7 +443,7 @@ classdef JPIC < handle
                 elseif XdLocsM ~= self.M
                     error("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
                 end
-                self.data_len = M*N - sum(self.XdLocs, "all");
+                self.data_len = sum(self.XdLocs, "all");
             end
         end
 
@@ -458,7 +488,7 @@ classdef JPIC < handle
         %}
         function H_DD = buildOtfsRectaDDChannel(self, p, his, lis, kis)
             % input check
-            if self.pulse_type ~= self.PULSE_RECTA
+            if self.pulse_type ~= self.PUL_RECTA
                 error("Cannot build the rectangular pulse DD channel while not using rectanular pulse.");
             end
             % build H_DD

@@ -69,3 +69,4 @@ yDD_diff = abs(yDD - yDDe);
 h_diff = abs(inv(Phi'*Phi)*Phi'*yDD - h);
 assert(max(yDD_diff) < 1e-13);
 assert(max(h_diff) < 1e-13);
+disp("JPIC:buildPhi() test pass!");
