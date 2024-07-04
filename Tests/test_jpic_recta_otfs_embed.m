@@ -61,3 +61,5 @@ jpic = JPIC(constel);
 jpic.setPul2Recta();
 jpic.setMod2OtfsEM(M, N, "Xp", Xp, "XdLocs", XdLocs);
 [x, H_DD] = jpic.detect(Y_DD, lmax, kmax, No, "sym_map", true);
+
+diff_x = abs(x - xDD.');
