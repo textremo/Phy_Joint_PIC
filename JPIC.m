@@ -102,6 +102,7 @@ classdef JPIC < handle
                 self.constel_len = length(constel);
                 self.es = sum(abs(constel).^2)/self.constel_len;   % constellation average power
             end
+            %TODO: add optional inputs
         end
         
         %{
@@ -228,7 +229,7 @@ classdef JPIC < handle
 
         %{
         detect
-        @Y_DD:          the received signal in the delay Doppler domain
+        @Y_DD:          the received signal in the delay Doppler domain [(batch_size), doppler, delay]
         @lmax:          the maximal delay index
         @kmax:          the maximal Doppler index
         @No:            the noise (linear) power
@@ -255,42 +256,11 @@ classdef JPIC < handle
             % constant values
             y = Y_DD.';
             y = y(:);
-            Ht = H';
-            Hty = Ht*y;
-            HtH = Ht*H;
-            HtH_off = ((eye(x_num)+1) - eye(x_num).*2).*HtH;
-            HtH_off_sqr = HtH_off.^2;
-            % CE
-
-            % % SD
-            % % SD - BSO - mean - 1st iter
-            % switch self.sd_bso_mean_cal_init
-            %     case self.SD_BSO_MEAN_CAL_INIT_MMSE
-            %         bso_zigma_1 = inv(HtH + No/self.es*eye(x_num));
-            %     case self.SD_BSO_MEAN_CAL_INIT_MRC
-            %         bso_zigma_1 = diag(1./vecnorm(H).^2);
-            %     case self.SD_BSO_MEAN_CAL_INIT_LS
-            %         bso_zigma_1 = inv(HtH);
-            %     otherwise
-            %         bso_zigma_1 = eye(x_num);
-            % end
-            % % SD - BSO - mean - other iteration
-            % switch self.sd_bso_mean_cal
-            %     case self.SD_BSO_MEAN_CAL_MRC
-            %         bso_zigma_n = diag(1./vecnorm(H).^2);
-            %     case self.SD_BSO_MEAN_CAL_LS
-            %         bso_zigma_n = inv(HtH);
-            % end
-            % % SD - BSO - variance
-            % switch self.sd_bso_var_cal
-            %     case self.SD_BSO_VAR_CAL_MMSE
-            %         bso_var_mat = diag(inv(HtH + No/self.es*eye(x_num)));
-            %     case self.SD_BSO_VAR_CAL_MRC
-            %         bso_var_mat = 1./vecnorm(H).^2;
-            %     case self.SD_BSO_VAR_CAL_LS
-            %         bso_var_mat = diag(inv(HtH));
-            % end
-            % bso_var_mat_sqr = bso_var_mat.^2;
+            xp = self.Xp.';
+            xp = xp(:);
+            xdlocs = self.XdLocs.';
+            xdlocs = xdlocs(:);
+            
             % % SD - DSC
             % switch self.sd_dsc_ise
             %     case self.SD_DSC_ISE_MMSE
@@ -304,6 +274,8 @@ classdef JPIC < handle
             % iterative detection
             Xe = zeros(self.N, self.M);
             ise_dsc_prev = zeros(self.sig_len, 1);
+            x_bse = zeros(self.sig_len, 1);
+            v_bse = zeros(self.sig_len, 1);
             x_dsc = zeros(self.sig_len, 1);
             v_dsc = zeros(self.sig_len, 1);
             x_det = zeros(self.sig_len, 1);
@@ -311,10 +283,76 @@ classdef JPIC < handle
                 % CE
                 X = Xe + self.Xp;
                 Phi = self.buildPhi(X, lmax, kmax);
-                
-                
-
+                h = inv(Phi'*Phi)*Phi'*y;
+                % build the channel
+                H = self.buildHdd(h, lmax, kmax);
+                [~, x_num] = size(H);
+                Ht = H';
+                Hty = Ht*y;
+                HtH = Ht*H;
+                HtH_off = ((eye(x_num)+1) - eye(x_num).*2).*HtH;
+                HtH_off_sqr = HtH_off.^2;
                 % SD
+                % SD - BSO
+                % SD - BSO - mean
+                if iter_id == 1
+                    % SD - BSO - mean - 1st iter
+                    switch self.sd_bso_mean_cal_init
+                        case self.SD_BSO_MEAN_CAL_INIT_MMSE
+                            bso_zigma_1 = inv(HtH + No/self.es*eye(x_num));
+                        case self.SD_BSO_MEAN_CAL_INIT_MRC
+                            bso_zigma_1 = diag(1./vecnorm(H).^2);
+                        case self.SD_BSO_MEAN_CAL_INIT_LS
+                            bso_zigma_1 = inv(HtH);
+                        otherwise
+                            bso_zigma_1 = eye(x_num);
+                    end
+                    x_bso = bso_zigma_1*(Hty - HtH_off*x_dsc);
+                else
+                    % SD - BSO - mean - other iteration
+                    switch self.sd_bso_mean_cal
+                        case self.SD_BSO_MEAN_CAL_MRC
+                            bso_zigma_n = diag(1./vecnorm(H).^2);
+                        case self.SD_BSO_MEAN_CAL_LS
+                            bso_zigma_n = inv(HtH);
+                    end
+                    x_bso = bso_zigma_n*(Hty - HtH_off*x_dsc);
+                end
+                % SD - BSO - variance
+                switch self.sd_bso_var_cal
+                    case self.SD_BSO_VAR_CAL_MMSE
+                        bso_var_mat = diag(inv(HtH + No/self.es*eye(x_num)));
+                    case self.SD_BSO_VAR_CAL_MRC
+                        bso_var_mat = 1./vecnorm(H).^2.';
+                    case self.SD_BSO_VAR_CAL_LS
+                        bso_var_mat = diag(inv(HtH));
+                end
+                bso_var_mat_sqr = bso_var_mat.^2;
+                if self.sd_bso_var == self.SD_BSO_VAR_TYPE_APPRO
+                    v_bso = No.*bso_var_mat;
+                end
+                if self.sd_bso_var == self.SD_BSO_VAR_TYPE_ACCUR
+                    v_bso = No.*bso_var_mat + HtH_off_sqr*v_dsc.*bso_var_mat_sqr;
+                end
+                v_bso = max(v_bso, self.min_var);
+
+                % BSE
+                bse_x_bso_mat = repmat(x_bso(xdlocs), 1, self.constel_len);
+                bse_constel_mat = repmat(self.constel, self.data_len, 1) + repmat(xp(xdlocs), 1, self.constel_len);
+                % BSE - Estimate P(x|y) using Gaussian distribution
+                pxyPdfExpPower = -1./(2*v_bso).*abs(bse_x_bso_mat - bse_constel_mat).^2;
+                pxypdfExpNormPower = pxyPdfExpPower - max(pxyPdfExpPower, [], 2);   % make every row the max power is 0
+                pxyPdf = exp(pxypdfExpNormPower);
+                % BSE - Calculate the coefficient of every possible x to make the sum of all
+                pxyPdfCoeff = 1./sum(pxyPdf, 2);
+                pxyPdfCoeff = repmat(pxyPdfCoeff, 1, self.constel_len);
+                % BSE - PDF normalisation
+                pxyPdfNorm = pxyPdfCoeff.*pxyPdf;
+                % BSE - calculate the mean and variance
+                x_bse = sum(pxyPdfNorm.*self.constel, 2);
+                x_bse_mat = repmat(x_bse, 1, self.constel_len);
+                v_bse = sum(abs(x_bse_mat - self.constel).^2.*pxyPdfNorm, 2);
+                v_bse = max(v_bse, self.min_var);
             end
         end
     end

@@ -7,7 +7,7 @@ clear;
 clc;
 
 %% Data
-M_mod = 16;
+M_mod = 4;
 M_bits = log2(M_mod);
 constel = qammod(0: M_mod-1, M_mod, 'UnitAveragePower',true);
 SNR_p = 30; % dB
@@ -60,4 +60,4 @@ jpic = JPIC(constel);
 %% Tests - Recta - OTFS(Embed)
 jpic.setPul2Recta();
 jpic.setMod2OtfsEM(M, N, "Xp", Xp, "XdLocs", XdLocs);
-[x, H_DD] = jpic.detect(Y_DD, No, "sym_map", true);
+[x, H_DD] = jpic.detect(Y_DD, lmax, kmax, No, "sym_map", true);
