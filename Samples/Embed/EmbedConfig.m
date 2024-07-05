@@ -35,3 +35,4 @@ if ~exist(path_folder, "dir")
     mkdir(path_folder);
 end
 path_file_comp = path_folder + "comp.mat";
+path_file_joint = path_folder + "joint.mat";
