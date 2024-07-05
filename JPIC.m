@@ -273,7 +273,7 @@ classdef JPIC < handle
                 % CE
                 X = Xe + self.Xp;
                 Phi = self.buildPhi(X, lmax, kmax);
-                h = inv(Phi'*Phi)*Phi'*y;
+                h = pinv(Phi'*Phi)*Phi'*y;
                 % build the channel
                 H = self.buildHdd(h, lmax, kmax);
                 [~, x_num] = size(H);
