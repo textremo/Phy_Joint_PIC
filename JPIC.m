@@ -643,9 +643,10 @@ classdef JPIC < handle
             ise_dsc_prev = zeros(self.sig_len, 1);
             x_bse = zeros(self.sig_len, 1);
             x_dsc = zeros(self.sig_len, 1);
+            x_det = zeros(self.sig_len, 1);     % the soft symbol detection results
             for iter_id = 1:self.iter_num
                 % CE
-                Xe = reshape(x_dsc, self.M, self.N).';
+                Xe = reshape(x_det, self.M, self.N).';
                 Phi = self.buildPhi(Xe + self.Xp, lmax, kmax);
                 h = inv(Phi'*Phi)*Phi'*y;
                 % build the channel
@@ -720,11 +721,11 @@ classdef JPIC < handle
                 ise_dsc_prev = ise_dsc;
 
                 % soft symbol estimation
-                x_dsc(xdlocs) = self.symmap(x_dsc(xdlocs));
-                x_dsc(xndlocs) = 0;
+                x_det(xdlocs) = self.symmap(x_dsc(xdlocs));
+                x_det(xndlocs) = 0;
             end
             % only keep data part
-            x = x_dsc(xdlocs);
+            x = x_det(xdlocs);
         end
     end
 
