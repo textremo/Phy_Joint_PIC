@@ -814,8 +814,8 @@ classdef JPIC < handle
         set OTFS
         @M:             subcarrier number
         @N:             timeslot number
-        @Xp(opt):       the pilot value matrix ([batch_size], N, M)
-        @XdLocs(opt):   the data locs matrix ([batch_size], N, M)
+        @Xp(opt):       the pilot value matrix (N, M)
+        @XdLocs(opt):   the data locs matrix (N, M)
         %}
         function setOTFS(self, M, N, varargin)
             % OTFS size
@@ -853,9 +853,9 @@ classdef JPIC < handle
             if ~isempty(self.XdLocs)
                 [XdLocsN, XdLocsM] = size(self.XdLocs);
                 if XdLocsN ~= self.N
-                    error("The timeslot number of the pilot matrix is not same as the given timeslot number.");
+                    error("The timeslot number of the data location matrix is not same as the given timeslot number.");
                 elseif XdLocsM ~= self.M
-                    error("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
+                    error("The subcarrier number of the data location matrix is not same as the given subcarrier number.");
                 end
                 self.data_len = sum(self.XdLocs, "all");
             end

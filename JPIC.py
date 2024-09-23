@@ -116,3 +116,41 @@ class JPIC:
     def setMod2Otfs(self, M, N):
         self.mod_type = self.MOD_OTFS;
     
+    
+    ########################################################
+    # private methods
+    '''
+    set OTFS
+    @M:             subcarrier number
+    @N:             timeslot numberr
+    @Xp(opt):       the pilot value matrix (N, M)
+    @XdLocs(opt):   the data locs matrix (N, M)
+    '''
+    def setOTFS(self, M, N, *, Xp=None, XdLocs=None):
+        # OTFS size
+        if M < 1 or not isinstance(M, int):
+            raise Exception("The subcarrier number cannot be less than 1 or a fractional number");
+        else:
+            self.M = M;
+        if N < 1 or not isinstance(N, int):
+            raise Exception("The timeslot number cannot be less than 1 or a fractional number.");
+        else:
+            self.N = N;
+        self.sig_len = M*N;
+        self.data_len = M*N;
+        # opt
+        # opt - the pilot value matrix
+        if Xp is not None:
+            self.Xp = np.asarray(Xp);
+            if self.Xp.shape[-2] != self.N:
+                raise Exception("The timeslot number of the pilot matrix is not same as the given timeslot number.");
+            elif self.Xp.shape[-1] != self.M:
+                raise Exception("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
+        # opt - the data locs matrix
+        if XdLocs is not None:
+            self.XdLocs = np.asarray(XdLocs);
+            if self.XdLocs.shape[-2] != self.N:
+                raise Exception("The timeslot number of the data location matrix is not same as the given timeslot number.");
+            elif self.XdLocs.shape[-1] != self.M:
+                raise Exception("The subcarrier number of the data location matrix is not same as the given subcarrier number.");
+            self.data_len = np.sum(self.XdLocs);
