@@ -1,7 +1,8 @@
 import numpy as np
 eps = np.finfo(float).eps;
+from whatshow_toolbox import *;
 
-class JPIC:
+class JPIC(MatlabFuncHelper):
     # constants
     # PUL (pulse)
     PUL_BIORT   = 1;        # bi-orthogonal pulse
@@ -115,7 +116,55 @@ class JPIC:
     '''    
     def setMod2Otfs(self, M, N):
         self.mod_type = self.MOD_OTFS;
+        self.setOTFS(M, N);
+    def setMod2OtfsEM(self, M, N, *, Xp=None, XdLocs=None):
+        self.mod_type = self.MOD_OTFS_EM;
+        self.setOTFS(M, N, Xp=Xp, XdLocs=XdLocs);
+    def setMod2OtfsSP(self, M, N, *, Xp=None, XdLocs=None):
+        self.mod_type = self.MOD_OTFS_SP;
+        self.setOTFS(M, N, Xp=Xp, XdLocs=XdLocs);
     
+    '''
+    settings - CE
+    '''
+    def setCE2LS(self):
+        self.ce_type = self.CE_LS;
+    
+    ########################################################
+    # Auxiliary Methods
+    '''
+    build Phi - the channel estimation matrix
+    @X:     the Tx matrix in DD domain ([batch_size], doppler, delay)
+    @lmax:  the maximal delay
+    @kmax:  the maximal Doppler
+    '''
+    def buildPhi(self, X, lmax, kmax):
+        pmax = (lmax+1)*(2*kmax+1);                                         # the number of all possible paths
+        lis = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);  # the delays on all possible paths
+        kis = np.tile(np.arange(-kmax, kmax+1), lmax+1);                    # the dopplers on all possible paths
+        Phi = self.zeros(self.sig_len, pmax).astype(complex);               # the return matrix
+        for yk in range(self.N):
+            for yl in range(self.M):
+                Phi_ri = yk*self.M + yl;      # row id in Phi
+                for p_id in range(pmax):
+                    # path delay and doppler
+                    li = lis[p_id];
+                    ki = kis[p_id];
+                    # x(k, l)
+                    xl = yl - li;
+                    if yl < li:
+                        xl = xl + self.M;
+                    xk = np.mod(yk - ki, self.N);
+                    # exponential part (pss_beta)
+                    if self.pulse_type == self.PUL_BIORT:
+                        pss_beta = np.exp(-2j*np.pi*li*ki/self.M/self.N);
+                    elif self.pulse_type == self.PUL_RECTA:
+                        pss_beta = np.exp(2j*np.pi*(yl - li)*ki/self.M/self.N); # here, you must use `yl-li` instead of `xl` or there will be an error
+                        if yl < li:
+                            pss_beta = pss_beta*np.exp(-2j*np.pi*xk/self.N);
+                    # assign value
+                    Phi[..., Phi_ri, p_id] = X[..., xk, xl]*pss_beta;
+        return Phi;
     
     ########################################################
     # private methods

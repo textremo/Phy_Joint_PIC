@@ -32,7 +32,6 @@ glp_len = lmax;
 % Tx
 xDD_idx = randi(4, M*N - (gkn_len + gkp_len + 1)*(gln_len + glp_len + 1), 1);
 xDD = constel(xDD_idx);
-xDD = repmat(1+1j, M*N - (gkn_len + gkp_len + 1)*(gln_len + glp_len + 1), 1);
 rg = OTFSResGrid(M, N);
 rg.setPulse2Recta();
 rg.setPilot2Embed();

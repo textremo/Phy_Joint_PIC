@@ -752,7 +752,7 @@ classdef JPIC < handle
                         % path delay and doppler
                         li = lis(p_id);
                         ki = kis(p_id);
-                        % x(k, l)_
+                        % x(k, l)
                         xl = yl - li;
                         if yl-1 < li
                             xl = xl + self.M;
