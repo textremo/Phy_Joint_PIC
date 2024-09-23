@@ -7,7 +7,7 @@ class JPIC:
     PUL_BIORT   = 1;        # bi-orthogonal pulse
     PUL_RECTA   = 2;        # rectangular pulse
     # MOD (modulation)
-    MOD_MIMO = 10;
+    MOD_OFDM = 10;
     MOD_OTFS = 20;          # perfect csi
     MOD_OTFS_EM = 21;
     MOD_OTFS_SP = 22;
@@ -93,3 +93,26 @@ class JPIC:
             raise Exception("The constellation must be a vector.");
         else:
             self.constel = constel;
+            self.constel_len = len(constel);
+            self.es = np.sum(abs(constel)**2)/self.constel_len;
+        #TODO: add optionl inputs
+        
+    '''
+    settings - pulse type
+    '''
+    def setPul2Biort(self):
+        self.pulse_type = self.PUL_BIORT;
+    def setPul2Recta(self):
+        self.pulse_type = self.PUL_RECTA;
+    
+    '''
+    settings - MOD - OFDM
+    '''
+    def setMod2Ofdm(self):
+        self.mod_type = self.MOD_OFDM;
+    '''
+    settings - MOD - OTFS
+    '''    
+    def setMod2Otfs(self, M, N):
+        self.mod_type = self.MOD_OTFS;
+    

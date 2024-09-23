@@ -5,7 +5,7 @@ classdef JPIC < handle
         PUL_BIORT   = 1;        % bi-orthogonal pulse
         PUL_RECTA   = 2;        % rectangular pulse
         % MOD (modulation)
-        MOD_MIMO = 10;
+        MOD_OFDM = 10;
         MOD_OTFS = 20;          % perfect csi
         MOD_OTFS_EM = 21;
         MOD_OTFS_SP = 22;
@@ -116,10 +116,10 @@ classdef JPIC < handle
         end
 
         %{
-        settings - MOD
+        settings - MOD - OFDM
         %}
         function setMod2Ofdm(self)
-            self.mod_type = self.MOD_MIMO;
+            self.mod_type = self.MOD_OFDM;
         end
         %{
         settings - MOD - OTFS
