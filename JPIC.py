@@ -239,7 +239,7 @@ class JPIC(MatlabFuncHelper):
             Xe = self.reshape(x_det, self.N, self.M);
             Phi = self.buildPhi(Xe + self.Xp, lmax, kmax);
             Phit = np.conj(np.moveaxis(Phi, -1, -2));
-            h = inv(Phit @ Phi) @ Phit @ y;
+            h = np.squeeze(inv(Phit @ Phi) @ Phit @ y, axis=-1);
             # build the channel
             H = self.buildHdd(h, lmax, kmax);
             Ht = np.conj(np.moveaxis(H, -1, -2));
@@ -300,10 +300,10 @@ class JPIC(MatlabFuncHelper):
             ise_dsc_prev = ise_dsc;
 
             # soft symbol estimation
-            x_det[xdlocs] = self.symmap(x_dsc[xdlocs]);
+            x_det[xdlocs] = self.symmapNoBat(x_dsc[xdlocs]);
             x_det[xndlocs] = 0;
         # only keep data part
-        x = x_det[xdlocs];
+        x = x_det[xdlocs] if self.batch_size is self.BATCH_SIZE_NO else np.reshape(x_det[xdlocs], (self.batch_size, -1));
         return x, H;
     
     ########################################################
@@ -395,14 +395,14 @@ class JPIC(MatlabFuncHelper):
         # opt
         # opt - the pilot value matrix
         if Xp is not None:
-            self.Xp = np.asarray(Xp);
+            self.Xp = np.asarray(Xp) if self.batch_size is self.BATCH_SIZE_NO else np.tile(Xp, (self.batch_size, 1, 1));
             if self.Xp.shape[-2] != self.N:
                 raise Exception("The timeslot number of the pilot matrix is not same as the given timeslot number.");
             elif self.Xp.shape[-1] != self.M:
                 raise Exception("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
         # opt - the data locs matrix
         if XdLocs is not None:
-            self.XdLocs = np.asarray(XdLocs);
+            self.XdLocs = np.asarray(XdLocs) if self.batch_size is self.BATCH_SIZE_NO else np.tile(XdLocs, (self.batch_size, 1, 1));
             if self.XdLocs.shape[-2] != self.N:
                 raise Exception("The timeslot number of the data location matrix is not same as the given timeslot number.");
             elif self.XdLocs.shape[-1] != self.M:
@@ -505,7 +505,7 @@ class JPIC(MatlabFuncHelper):
         return ts;
     
     '''
-    symbol mapping (soft)
+    symbol mapping (hard)
     '''
     def symmap(self, syms):
         syms = np.asarray(syms);
@@ -517,4 +517,15 @@ class JPIC(MatlabFuncHelper):
         syms_dis = abs(syms_mat - constel_mat)**2;
         syms_dis_min_idx = syms_dis.argmin(axis=-1);
         
+        return np.take(self.constel, syms_dis_min_idx);
+    
+    '''
+    symbol mapping (hard, no batch)
+    '''
+    def symmapNoBat(self, syms):
+        syms_len = syms.shape[-1];
+        syms_mat = np.tile(np.expand_dims(syms, -1), (1, self.constel_len));
+        constel_mat = self.repmat1(self.constel, syms_len, 1);
+        syms_dis = abs(syms_mat - constel_mat)**2;
+        syms_dis_min_idx = syms_dis.argmin(axis=-1);
         return np.take(self.constel, syms_dis_min_idx);

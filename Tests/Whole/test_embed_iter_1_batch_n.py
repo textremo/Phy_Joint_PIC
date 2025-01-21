@@ -7,7 +7,7 @@ sys.path.append("../../..");
 from JPIC import JPIC
 from whatshow_phy_mod_otfs import OTFS, OTFSResGrid, OTFSDetector
 eps = np.finfo(float).eps;
-batch_size = 1;    # batch size
+batch_size = 9;    # batch size
 
 # load the config
 project_name = "phy_joint_pic";  # file
@@ -40,10 +40,10 @@ gkp_len = np.squeeze(matlab_data['gkp_len']).tolist();
 gln_len = np.squeeze(matlab_data['gln_len']).tolist();
 glp_len = np.squeeze(matlab_data['glp_len']).tolist();
 # CSI
-his = matlab_data['his'];
-lis = matlab_data['lis'];
-kis = matlab_data['kis'];
-noise = np.moveaxis(matlab_data['noise'], -1, -2);
+his = np.tile(matlab_data['his'], (batch_size, 1));
+lis = np.tile(matlab_data['lis'], (batch_size, 1));
+kis = np.tile(matlab_data['kis'], (batch_size, 1));
+noise = np.tile(np.moveaxis(matlab_data['noise'], -1, -2), (batch_size, 1));
 # data for comparison
 Y_DD_mat = np.tile(matlab_data['Y_DD'], [batch_size, 1, 1]);
 
@@ -68,7 +68,7 @@ otfs.passChannel(noise);
 rg_rx = otfs.demodulate();
 [y, hiEsts, liEsts, kiEsts] = rg_rx.demap(threshold=pil_thr);
 Y_DD = rg_rx.getContent();
-assert(np.sum(abs(Y_DD_mat-Y_DD))<N*M*eps);
+assert(np.sum(abs(Y_DD_mat-Y_DD))<N*M*eps*batch_size);
 
 # Test
 jpic = JPIC(constel, iter_num=1, batch_size=batch_size);
