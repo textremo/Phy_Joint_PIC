@@ -10,7 +10,8 @@ classdef JPIC < handle
         MOD_OTFS_EM = 21;
         MOD_OTFS_SP = 22;
         % CE (channel estimation)
-        CE_LS = 1;
+        CE_MRC = 1;             % maximum ratio combing
+        CE_ZF = 2;              % zero forcing
         % SD (symbol detection)
         % SD - BSO
         % SD - BSO - mean
@@ -55,7 +56,7 @@ classdef JPIC < handle
         % MOD
         mod_type                = JPIC.MOD_OTFS;
         % CE
-        ce_type                 = JPIC.CE_LS;
+        ce_type                 = JPIC.CE_MRC;
         % SD
         sd_bso_mean_cal_init    = JPIC.SD_BSO_MEAN_CAL_INIT_MMSE;
         sd_bso_mean_cal         = JPIC.SD_BSO_MEAN_CAL_MRC;
@@ -91,6 +92,15 @@ classdef JPIC < handle
         @iter_diff_min:     the minimal difference in **DSC** to early stop.
         %}
         function self = JPIC(constel, varargin)
+            % register optional inputs 
+            inPar = inputParser;
+            addParameter(inPar,"min_var", self.min_var, @isnumeric);
+            addParameter(inPar,"iter_num", self.iter_num, @isnumeric);
+            addParameter(inPar,"iter_diff_min", self.iter_diff_min, @isnumeric);
+            inPar.KeepUnmatched = true;
+            inPar.CaseSensitive = false;
+            parse(inPar, varargin{:});
+
             % take inputs
             if ~isvector(constel)
                 error("The constellation must be a vector.");
@@ -102,7 +112,13 @@ classdef JPIC < handle
                 self.constel_len = length(constel);
                 self.es = sum(abs(constel).^2)/self.constel_len;   % constellation average power
             end
-            %TODO: add optional inputs
+            % optional inputs
+            self.min_var = inPar.Results.min_var;
+            self.iter_num = inPar.Results.iter_num;
+            if self.iter_num < 1
+                error("The iteration number must be positive.")
+            end
+            self.iter_diff_min = inPar.Results.iter_diff_min;
         end
         
         %{
@@ -144,8 +160,11 @@ classdef JPIC < handle
         %{
         settings - CE
         %}
-        function setCE2LS(self)
-            self.ce_type = self.CE_LS;
+        function setCE2MRC(self)
+            self.ce_type = self.CE_MRC;
+        end
+        function setCE2ZF(self)
+            self.ce_type = self.CE_ZF;
         end
         
         %{
@@ -603,7 +622,7 @@ classdef JPIC < handle
         %     % only keep data part
         %     x = x_bse(xdlocs);
         % end
-
+        
         %{
         detect
         @Y_DD:          the received signal in the delay Doppler domain [(batch_size), doppler, delay]
