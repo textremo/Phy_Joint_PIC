@@ -13,13 +13,14 @@ batch_size = 1;    # batch size
 project_name = "phy_joint_pic";  # file
 path_folder = os.path.abspath(os.path.dirname(__file__)).lower();
 path_folder = path_folder[:path_folder.find(project_name)+len(project_name)];
-path_file = os.path.normpath(path_folder+"/_data/Samples/Whole_CE/test_embedded_iter_1.mat");
+path_file = os.path.normpath(path_folder+"/_data/Samples/Whole_CE/test_embedded_iter_n.mat");
 # load matlab data
 try:
     matlab_data = scipy.io.loadmat(path_file);
 except FileNotFoundError:
     raise Exception("You have to run matlab script to generate data.");
 # data
+iter_num = np.squeeze(matlab_data['iter_num']);
 constel = np.squeeze(matlab_data['constel']);
 SNR_p = np.squeeze(matlab_data['SNR_p']).tolist(); # dB
 SNR_d = np.squeeze(matlab_data['SNR_d']).tolist(); # dB
@@ -40,12 +41,13 @@ gkp_len = np.squeeze(matlab_data['gkp_len']).tolist();
 gln_len = np.squeeze(matlab_data['gln_len']).tolist();
 glp_len = np.squeeze(matlab_data['glp_len']).tolist();
 # CSI
-his = np.tile(matlab_data['his'], (batch_size, 1));
-lis = np.tile(matlab_data['lis'], (batch_size, 1));
-kis = np.tile(matlab_data['kis'], (batch_size, 1));
-noise = np.moveaxis(matlab_data['noise'], -1, -2);
+his = matlab_data['his'];
+lis = matlab_data['lis'];
+kis = matlab_data['kis'];
+noise = np.tile(np.moveaxis(matlab_data['noise'], -1, -2), (batch_size, 1));
 # data for comparison
 Y_DD_mat = np.tile(matlab_data['Y_DD'], [batch_size, 1, 1]);
+H_DD_mat = np.tile(np.squeeze(matlab_data['H_DD']), [batch_size, 1, 1]);
 
 # Tx
 xDD = np.tile(np.squeeze(matlab_data['xDD']), (batch_size, 1));
@@ -71,10 +73,12 @@ Y_DD = rg_rx.getContent();
 assert(np.sum(abs(Y_DD_mat-Y_DD))<N*M*eps);
 
 # Test
-jpic = JPIC(constel, iter_num=1, batch_size=batch_size);
+jpic = JPIC(constel, iter_num=iter_num, batch_size=batch_size);
 # Tests - Recta - OTFS(Embed)
 jpic.setPul2Recta();
 jpic.setMod2OtfsEM(M, N, Xp=Xp, XdLocs=XdLocs);
 x, H_DD = jpic.detect(Y_DD, lmax, kmax, No, sym_map=True);
 diff_x = abs(x - xDD);
 assert(np.sum(abs(diff_x)) == 0);
+diff_H_DD = abs(H_DD - H_DD_mat);
+assert(np.sum(abs(diff_H_DD)) < eps*M*N*M*N);

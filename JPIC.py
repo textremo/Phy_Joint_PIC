@@ -286,16 +286,16 @@ class JPIC(MatlabFuncHelper):
             if iter_id == 0:
                 x_dsc = x_bso;
             else:
-                #if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
+                if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
                     #x_dsc = ise_dsc./ies_dsc_sum.*x_bse_prev + ise_dsc_prev./ies_dsc_sum.*x_bse;
-                    #x_dsc = (1 - rho_dsc)*x_bso_prev + rho_dsc*x_bso;
+                    x_dsc = (1 - rho_dsc)*x_bso_prev + rho_dsc*x_bso;
                 if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_DSC:
                     x_dsc = (1 - rho_dsc)*x_dsc + rho_dsc*x_bso;
 
             # update statistics
             # update statistics - BSE
-            #if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
-                #x_bso_prev = x_bso;
+            if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
+                x_bso_prev = x_bso;
             # update statistics - DSC - instantaneous square error
             ise_dsc_prev = ise_dsc;
 
