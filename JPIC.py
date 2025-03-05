@@ -308,6 +308,7 @@ class JPIC(MatlabFuncHelper):
     
     ########################################################
     # Auxiliary Methods
+    
     '''
     build Phi - the channel estimation matrix
     @X:     the Tx matrix in DD domain ([batch_size], doppler, delay)
