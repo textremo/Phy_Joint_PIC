@@ -1,3 +1,4 @@
+from scipy.stats.distributions import chi2
 import numpy as np
 
 
@@ -14,6 +15,12 @@ class CPE(object):
     pls = [];
     Es_p = 0;
     batch_size = 0;
+    # variables - pilots
+    pil_val = None;
+    area_len = 0;
+    rho0 = 0;       # the probability that the signal is 
+    rho1 = 0;
+    
     
     '''
     @M: subcarrier number
@@ -25,8 +32,8 @@ class CPE(object):
         self.N = N;
         self.lmax = lmax;
         self.batch_size = batch_size;
-        area_len = lmax + 1;
-        self.area_num = np.floor(M / area_len).astype(int);
+        self.area_len = lmax + 1;
+        self.area_num = np.floor(M / self.area_len).astype(int);
         if self.area_num <= 0:
             raise Exception("There is no space for pilots.");
         # calculate the Doppler positions
@@ -43,10 +50,10 @@ class CPE(object):
     '''
     def genPilots(self, Es_p):
         self.Es_p = Es_p;
-        pil_val = self.PIL_VAL*np.sqrt(Es_p);
+        self.pil_val = self.PIL_VAL*np.sqrt(Es_p);
         Xp = np.zeros([self.batch_size, self.N, self.M]).astype(complex);
         for area_id in range(self.area_num):
-            Xp[:, self.pk, self.pls[area_id]] = pil_val;
+            Xp[:, self.pk, self.pls[area_id]] = self.pil_val;
         return Xp;
     
     '''
@@ -57,7 +64,17 @@ class CPE(object):
     def estPaths(self, Y_DD, Es_d):
         # we sum all area together
         Y_DD_area_sum = None;
+        est_area = np.zeros([self.batch_size, self.N, (self.lmax+1)]).astype(complex);
+        ca_id_beg = 0;
+        ca_id_end = self.area_len - 1;
+        # accumulate all areas together
+        for area_id in range(self.area_num):
+            est_area = est_area + Y_DD[..., :, ca_id_beg:ca_id_end];
+            ca_id_beg = ca_id_end + 1;
+            ca_id_end = ca_id_end + self.area_len - 1;
+        # find paths
+        for k_id in range(0, self.N):
+            for l_id in range(0, self.M):
+                if
         
-        
-        
-        pass
+    

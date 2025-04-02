@@ -8,8 +8,11 @@ N = 15; # timeslote number
 M = 16;  # subcarrier number
 QAM = 4;
 constel = [-0.7071-0.7071j, -0.7071+0.7071j, 0.7071-0.7071j, 0.7071+0.7071j];
-SNR_d = 20;
-SNR_p = 10;
+SNR_d = 14;
+SNR_p = 37;
+No = 10**(-SNR_d/10);
+Es_d = 1;
+Es_p = 10**((SNR_p - SNR_d)/10);
 # batch
 batch_size = 10;
 # channel configuration
@@ -20,7 +23,7 @@ kmax = 5;
 # init generalised variables
 otfs = OTFS(batch_size=batch_size);                 # OTFS module
 cpe = CPE(M, N, lmax, batch_size=batch_size);       # CPE
-X_p = cpe.genPilots(1);                             # pilots
+X_p = cpe.genPilots(Es_p);                             # pilots
 
 # generate symbols
 sym_idx = np.random.randint(4, size=(batch_size, M*N));
@@ -52,3 +55,6 @@ yDD_est = np.squeeze(H_DD @ np.expand_dims(xDD, axis=-1), axis=-1);
 yDD_diff = abs(yDD_est - yDD);
 yDD_diff_sum = np.sum(yDD_diff);
 yDD_diff_max = np.max(yDD_diff);
+Y_DD_power_diff = abs(Y_DD)**2;
+X_DD_pow = abs(X_DD)**2;
+

@@ -2,10 +2,10 @@ clear;
 clc;
 % this script is to calculate the threshold of the system
 % parameters
-pmax = 16; % the maximal path number
-No = 1;
-SNR_d = 14;
-powXd = 10^(SNR_d/10);
+pmax = ; % the maximal path number
+SNR_d = 20;
+No = 10^(-SNR_d/10);
+powXd = 1;
 % probabilties
 pNo = 0.9999;
 pPath = 0.9999;
@@ -20,7 +20,7 @@ for p = 1:pmax
     fprintf("Path is %d: SNR_p is %.8f, SNR_p-SNR_d is %.8f\n", p, SNR_p, (SNR_p-SNR_d));
 end
 
-disp("4 pilot case: Show the threshold when we can confirm it is a path!");
+disp(pilot_num + " pilot case: Show the threshold when we can confirm it is a path!");
 for p = 1:pmax
     SINR_p_linear = (chi2inv(pNo, 2*pilot_num)/chi2inv((1-pPath), 2*pilot_num)-1)*p; % the SINR of pilot (pilot/(Xd + z))
     SINR_p = 10*log10(SINR_p_linear);
