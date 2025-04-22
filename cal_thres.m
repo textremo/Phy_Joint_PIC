@@ -2,7 +2,7 @@ clear;
 clc;
 % this script is to calculate the threshold of the system
 % parameters
-pmax = ; % the maximal path number
+pmax = 16; % the maximal path number
 SNR_d = 20;
 No = 10^(-SNR_d/10);
 powXd = 1;
@@ -10,6 +10,9 @@ powXd = 1;
 pNo = 0.9999;
 pPath = 0.9999;
 pilot_num = 4;
+
+thres = chi2inv(pNo, 2*pilot_num)/2/pilot_num;
+disp("Not data + noise threshold")
 
 disp("1 pilot case: Show the threshold when we can confirm it is a path!");
 for p = 1:pmax

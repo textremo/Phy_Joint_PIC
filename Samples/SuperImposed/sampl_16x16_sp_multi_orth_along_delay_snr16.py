@@ -20,22 +20,37 @@ p = 6;
 lmax = 3;
 kmax = 5;
 
-# init generalised variables
-otfs = OTFS(batch_size=batch_size);                 # OTFS module
-cpe = CPE(M, N, lmax, batch_size=batch_size);       # CPE
-X_p = cpe.genPilots(Es_p);                             # pilots
+'''
+init generalised variables
+'''
+# config
+otfsconfig = OTFSConfig(batch_size = batch_size);
+otfsconfig.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, M, N);
+otfsconfig.setPul(OTFSConfig.PUL_TYPE_IDEAL);
+# OTFS module
+otfs = OTFS(batch_size=batch_size);
+# CPE
+cpe = CPE(otfsconfig, lmax, Es_d, No);
+# pilots
+X_p = cpe.genPilots(Es_p);
 
+'''
+Tx
+'''
 # generate symbols
 sym_idx = np.random.randint(4, size=(batch_size, M*N));
 syms_vec = np.take(constel,sym_idx);
 syms_mat = np.reshape(syms_vec, [batch_size, N, M]);
 # generate X_DD
 X_DD = syms_mat + X_p;
-
+# generate
 rg = OTFSResGrid(M, N, batch_size=batch_size);
 rg.setPulse2Recta();
 rg.setContent(X_DD);
 
+'''
+channel
+'''
 otfs.modulate(rg);
 
 sigma2 = 1/np.power(10,SNR_d/10);
@@ -44,11 +59,19 @@ otfs.setChannel(p, lmax, kmax);
 otfs.passChannel(0);
 his, lis, kis = otfs.getCSI();
 H_DD = otfs.getChannel();
+
+
+'''
+Rx
+'''
 rg_rx = otfs.demodulate();
 Y_DD = rg_rx.getContent();
 yDD = np.reshape(Y_DD, [batch_size, M*N]);
 
 
+'''
+signal processing
+'''
 xDD = np.reshape(X_DD, [batch_size, M*N]);
 yDD_est = np.squeeze(H_DD @ np.expand_dims(xDD, axis=-1), axis=-1);
 

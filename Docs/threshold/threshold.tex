@@ -63,33 +63,50 @@ p(2N_b\frac{|\eta_{k,l}|^2}{1+\sigma^2} \leq 2N_b\rho_0) \geq 99.99\% \\
 Therefore, 
 \begin{equation}
 \begin{split}
-2N_b\rho_0 \geq chi2inv(0.9999)\\
-\rho_0 \geq chi2inv(0.9999)/2N_b
+2N_b\rho_0 \geq chi2inv(0.9999, 2N_b)\\
+\rho_0 \geq chi2inv(0.9999, 2N_b)/2N_b
 \end{split}
 \end{equation}
-Also, we suppose the pilot power is ${E_s}$ and the pilot power on a certain path is $\frac{E_s}{p}$, i.e.,
+Therefore, we assume the signal is not noise is over $99.99\%$, i.e.,
 \begin{equation}
 \begin{split}
-p(\frac{|\eta_{k,l}|^2}{E_s/p + 1+\sigma^2} \geq \rho_1) \geq 99.99\% \\
-p(\frac{|\eta_{k,l}|^2}{E_s/p + 1+\sigma^2} \leq \rho_1) \leq 1-99.99\% \\
-p(\frac{2N_b|\eta_{k,l}|^2}{E_s/p + 1+\sigma^2} \leq 2N_b\rho_1) \leq 1-99.99\% \\
+p(|\eta_{k,l}|^2) \geq (1+\sigma^2)\rho_0) \geq 99.99\%
 \end{split}
 \end{equation}
-where $\rho_1 = chi2inv(1-0.9999)/2N_b$.
-
+Under this assumption, we suppose the pilot power is ${E_s}$ and the pilot power on a certain path is $\frac{E_s}{p}$. Therefore, we assume that the probability that the signal is a path is over $99.99\%$, i.e.,.
+\begin{equation}
+\begin{split}
+p(\frac{|\eta_{k,l}|^2}{E_s/p + 1+\sigma^2}  \geq \frac{1+\sigma^2}{E_s/p + 1+\sigma^2} \rho_0) \geq 99.99\% \\
+p(\frac{|\eta_{k,l}|^2}{E_s/p + 1+\sigma^2}  \leq \frac{1+\sigma^2}{E_s/p + 1+\sigma^2} \rho_0) \leq 1-99.99\% \\
+\end{split}
+\end{equation}
 Therefore,
 \begin{equation}
 \begin{split}
-\rho_0(1+\sigma^2) \leq |\eta_{k,l}|^2 \leq \rho_1(1+\sigma^2 + E_s/p) \\
-\rho_0(1+\sigma^2) \leq \rho_1(1+\sigma^2 + E_s/p) \\
-\frac{\rho_0}{\rho_1}(1+\sigma^2) \leq (1+\sigma^2 + E_s/p) \\
-(\frac{\rho_0}{\rho_1} - 1)(1+\sigma^2) \leq E_s/p \\
-p(\frac{\rho_0}{\rho_1} - 1)(1+\sigma^2) \leq E_s \\
-\frac{E_s}{1+\sigma^2} \geq p(\frac{\rho_0}{\rho_1} - 1)\\
-SINR_p \geq p(\frac{\rho_0}{\rho_1} - 1) \\
-SINR_p \geq p(\frac{\rho_0/2N_b}{\rho_1/2N_b} - 1) \\
-SINR_p \geq p(\frac{chi2inv(0.9999)}{chi2inv(1-0.9999)} - 1) \\
+2N_b\frac{1+\sigma^2}{E_s/p + 1+\sigma^2}\rho_0 \leq chi2inv(1-99.99\%, 2N_b) \\
+chi2inv(1-99.99\%, 2N_b)\frac{E_s/p + 1+\sigma^2}{2N_b(1+\sigma^2)} \geq \rho_0\\
+chi2inv(1-99.99\%, 2N_b)\frac{E_s/p + 1+\sigma^2}{2N_b(1+\sigma^2)} \geq \rho_0 \geq chi2inv(0.9999, 2N_b)/2N_b \\
+chi2inv(1-99.99\%, 2N_b)\frac{E_s/p + 1+\sigma^2}{2N_b(1+\sigma^2)} \geq chi2inv(0.9999, 2N_b)/2N_b \\
+E_s/p + 1+\sigma^2 \geq \frac{chi2inv(0.9999, 2N_b)}{chi2inv(1-99.99\%, 2N_b)}(1+\sigma^2 ) \\
+E_s/p \geq (\frac{chi2inv(0.9999, 2N_b)}{chi2inv(1-99.99\%, 2N_b)} - 1)(1+\sigma^2 ) \\
+E_s \geq p(\frac{chi2inv(0.9999, 2N_b)}{chi2inv(1-99.99\%, 2N_b)} - 1)(1+\sigma^2 ) \\
+\frac{E_s}{1+\sigma^2} \geq p(\frac{chi2inv(0.9999, 2N_b)}{chi2inv(1-99.99\%, 2N_b)} - 1) \\
+SINR_p \geq p(\frac{chi2inv(0.9999, 2N_b)}{chi2inv(1-0.9999, 2N_b)} - 1)
 \end{split}
 \end{equation}
+
+%\begin{equation}
+%\begin{split}
+%\rho_0(1+\sigma^2) \leq |\eta_{k,l}|^2 \leq \rho_1(1+\sigma^2 + E_s/p) \\
+%\rho_0(1+\sigma^2) \leq \rho_1(1+\sigma^2 + E_s/p) \\
+%\frac{\rho_0}{\rho_1}(1+\sigma^2) \leq (1+\sigma^2 + E_s/p) \\
+%(\frac{\rho_0}{\rho_1} - 1)(1+\sigma^2) \leq E_s/p \\
+%p(\frac{\rho_0}{\rho_1} - 1)(1+\sigma^2) \leq E_s \\
+%\frac{E_s}{1+\sigma^2} \geq p(\frac{\rho_0}{\rho_1} - 1)\\
+%SINR_p \geq p(\frac{\rho_0}{\rho_1} - 1) \\
+%SINR_p \geq p(\frac{\rho_0/2N_b}{\rho_1/2N_b} - 1) \\
+%SINR_p \geq p(\frac{chi2inv(0.9999)}{chi2inv(1-0.9999)} - 1) \\
+%\end{split}
+%\end{equation}
 
 \end{document}

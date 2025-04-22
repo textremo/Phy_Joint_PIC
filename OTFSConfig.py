@@ -8,9 +8,9 @@ class OTFSConfig(object):
     FRAME_TYPE_ZP = 2;          # using zero padding (no interference between two adjacent OTFS subframes)
     FRAME_TYPES = [FRAME_TYPE_GIVEN, FRAME_TYPE_FULL, FRAME_TYPE_CP, FRAME_TYPE_ZP];
     # pulse type
-    PUL_TYPES_IDEAL = 10;       # using ideal pulse to estimate the channel
-    PUL_TYPES_RECTA = 20;       # using rectangular waveform to estimate the channel
-    PUL_TYPES = [PUL_TYPES_IDEAL, PUL_TYPES_RECTA]; 
+    PUL_TYPE_IDEAL = 10;       # using ideal pulse to estimate the channel
+    PUL_TYPE_RECTA = 20;       # using rectangular waveform to estimate the channel
+    PUL_TYPES = [PUL_TYPE_IDEAL, PUL_TYPE_RECTA]; 
     # pilot types
     PIL_TYPE_GIVEN = -1;                        # user input the pilot matrix directly
     PIL_TYPE_NO = 0;                            # no pilots
@@ -23,7 +23,7 @@ class OTFSConfig(object):
     ###########################################################################
     # Variables
     frame_type = FRAME_TYPE_FULL;
-    pul_type = PUL_TYPES_RECTA;
+    pul_type = PUL_TYPE_RECTA;
     pil_type = PIL_TYPE_NO;
     N = 0;      # timeslot number
     M = 0;      # subcarrier number
@@ -37,8 +37,12 @@ class OTFSConfig(object):
     gl_len_pos = 0;
     gk_len_neg = 0;
     gk_len_pos = 0;
+    # energy
+    Es_d = 0;           # data energy
+    Es_p = 0;           # piloter energy
     # batch_size
     batch_size = None;
+    
     
     '''
     init
@@ -70,14 +74,21 @@ class OTFSConfig(object):
         self.zp_len = zp_len;
         
     '''
-    set the pulse
+    set the pulse tye
     @pul_type: pulse type
     '''
     def setPul(self, pul_type):
         if pul_type not in self.PUL_TYPES:
             raise Exception("`pul_type` must be a type of `OTFSConfig.PUL_TYPES`");
         self.pul_type = pul_type;
-            
+    '''
+    check the pulse type
+    '''
+    def isPulIdeal(self):
+        return self.pul_type == self.PUL_TYPE_IDEAL;
+    def isPulRecta(self):
+        return self.pul_type == self.PUL_TYPE_RECTA;
+        
     '''
     set the pilot
     @pil_type: pilote type
