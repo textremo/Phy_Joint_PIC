@@ -1,0 +1,203 @@
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+
+\usepackage{caption}    % support subfigure
+\usepackage{subcaption} % support subfigure
+\usepackage{placeins}   % support FloatBarrier
+\usepackage{listings}   % support codes
+\usepackage{color}      % support color
+\usepackage{amsmath} 	% support multiple lines
+\usepackage{amsfonts,amssymb} % support holo characters
+\usepackage[10pt]{extsizes}
+%\documentstyle[nips14submit_09,times,art10]{article} % For LaTeX 2.09
+
+% define color
+\definecolor{darkred}{rgb}{0.6,0.0,0.0}
+\definecolor{darkgreen}{rgb}{0,0.50,0}
+\definecolor{lightblue}{rgb}{0.0,0.42,0.91}
+\definecolor{orange}{rgb}{0.99,0.48,0.13}
+\definecolor{grass}{rgb}{0.18,0.80,0.18}
+\definecolor{pink}{rgb}{0.97,0.15,0.45}
+% set the img folder
+\graphicspath{{img/}}
+
+
+
+
+
+\renewcommand{\baselinestretch}{1.5}
+
+\title{Zero Forcing}
+\author{}
+\date{}
+
+\usepackage{geometry}
+\geometry{a4paper,left=2cm,right=2cm,top=2cm,bottom=2cm}
+
+\begin{document}
+
+\maketitle
+\section{Zero Forcing}
+\subsection{Hermitian Matrix}
+If the Hermitian transpose of a matrix is itself, this matrix is called the Hermitian matrix, i.e,
+\begin{equation}
+A^H = A
+\end{equation}
+Also, the inverse of a Hermitian matrix is Hermitian, i.e,
+\begin{equation}
+\begin{split}
+I &= AA^{-1} \\
+I &= I^H = (AA^{-1})^H = (A^{-1})^HA^H = (A^{-1})^HA \\
+I &= (A^{-1})^HA \\
+A^{-1} &= (A^{-1})^HAA^{-1} \\ 
+A^{-1} &= (A^{-1})^H \\ 
+\end{split}
+\end{equation}
+\subsection{The Implementation of the Channel Matrix}
+We implement the Hermitian matrix knowledge into the channel matrix $H$: $H^HH$ or $HH^H$ is a Hermitian matrix, i.e,
+\begin{equation}
+\begin{split}
+(H^HH)^H &= H^H(H^H)^H=H^HH \\
+(HH^H)^H &= (H^H)^HH^H=HH^H \\
+\end{split}
+\end{equation}
+Here, we need to know that $(AB)^H=B^HA^H$.
+Also, 
+\begin{equation}
+\begin{split}
+((H^HH)^{-1})^H &= (H^HH)^{-1} \\
+((HH^H)^{-1})^H &= (HH^H)^{-1} \\
+\end{split}
+\end{equation}
+
+\subsection{Least Square}
+\subsubsection{Mean}
+The zero forcing estimation is
+\begin{equation}
+\hat{x} = (H^HH)^{-1}H^Hy
+\end{equation}
+
+\subsubsection{Variance}
+The error of zero forcing is
+\begin{equation}
+\begin{split}
+e &= \hat{x} - x \\
+&= (H^HH)^{-1}H^Hy - x \\
+&= (H^HH)^{-1}H^H(Hx+n) - x \\
+&= (H^HH)^{-1}H^HHx - x + (H^HH)^{-1}H^Hn\\
+&= H^{-1}Hx - x + (H^HH)^{-1}H^Hn\\
+&= (H^HH)^{-1}H^Hn\\
+\end{split}
+\end{equation}
+Therefore, the covariance is
+\begin{equation}
+\begin{split}
+cov(\hat{x}) &= E(ee^H) \\
+&= E[(H^HH)^{-1}H^Hn((H^HH)^{-1}H^Hn)^H] \\
+&= E[(H^HH)^{-1}H^Hn n^HH(H^HH)^{-1}] \\
+&= (H^HH)^{-1}H^HE[nn^H]H(H^HH)^{-1} \\
+&= (H^HH)^{-1}H^H\sigma^2H(H^HH)^{-1} \\
+&= \sigma^2(H^HH)^{-1}H^HH(H^HH)^{-1} \\
+&= \sigma^2(H^HH)^{-1}[H^HH(H^HH)^{-1}] \\
+&= \sigma^2(H^HH)^{-1}I \\
+&= \sigma^2(H^HH)^{-1}
+\end{split}
+\end{equation}
+The variance is the diagonal, i.e.,
+\begin{equation}
+var(\hat{x}) = diag(\sigma^2(H^HH)^{-1}) 
+\end{equation}
+
+\subsection{Using the Estimated Channel Matrix}
+If we use the estimated channel matrix $H$, the error is
+\begin{equation}
+\begin{split}
+e &= \hat{x} - x = (\hat{H}^H\hat{H})^{-1}\hat{H}^Hy - x \\
+&=(\hat{H}^H\hat{H})^{-1}\hat{H}^H(Hx +n) - x \\
+&=(\hat{H}^H\hat{H})^{-1}\hat{H}^HHx - x +  (\hat{H}^H\hat{H})^{-1}\hat{H}^Hn \\
+&=(\hat{H}^H\hat{H})^{-1}\hat{H}^H(\hat{H} + H - \hat{H})x - x +  (\hat{H}^H\hat{H})^{-1}\hat{H}^Hn \\
+&= (\hat{H}^H\hat{H})^{-1}\hat{H}^H\hat{H}x -x + (\hat{H}^H\hat{H})^{-1}\hat{H}^H(H - \hat{H})x +  (\hat{H}^H\hat{H})^{-1}\hat{H}^Hn \\
+&= (\hat{H}^H\hat{H})^{-1}\hat{H}^H(H - \hat{H})x +  (\hat{H}^H\hat{H})^{-1}\hat{H}^Hn 
+\end{split}
+\label{eq:uecm-1}
+\end{equation}
+For simplification, we assume $W=(\hat{H}^H\hat{H})^{-1}\hat{H}^H$ and $\Delta H=\hat{H}-H$. Therefore, \eqref{eq:uecm-1} can be written as 
+\begin{equation}
+e = - W\Delta Hx + Wn
+\end{equation}
+Therefore, assuming the noise $n \sim \mathcal{CN}(0, \sigma^2)$, we can write the covariance as
+\begin{equation}
+\begin{split}
+cov(\hat{x}) &= E(ee^H) \\
+&= E[W\Delta Hx(W\Delta Hx)^H] + E(Wnn^HW^H) \\
+&= E(W\Delta Hxx^H\Delta H^HW^H) + E(Wnn^HW^H) \\
+&= \sigma_x^2E(\Delta H\Delta H^H)WW^H + \sigma^2WW^H
+\end{split}
+\label{eq:uecm-2}
+\end{equation}
+The $WW^H$ in \eqref{eq:uecm-2} can be simplified as,
+\begin{equation}
+\begin{split}
+WW^H &= (\hat{H}^H\hat{H})^{-1}\hat{H}^H ((\hat{H}^H\hat{H})^{-1}\hat{H}^H)^H\\
+&= (\hat{H}^H\hat{H})^{-1}\hat{H}^H \hat{H}(\hat{H}^H\hat{H})^{-1} \\
+&= (\hat{H}^H\hat{H})^{-1}
+\end{split}
+\end{equation}
+Therefore, \eqref{eq:uecm-2} can be written as 
+\begin{equation}
+cov(\hat{x}) = \sigma_x^2WE(\Delta H\Delta H^H)W^H + \sigma^2(\hat{H}^H\hat{H})^{-1}
+\end{equation}
+Herefore, the variance is 
+\begin{equation}
+\begin{split}
+var(\hat{x}) &= diag(\sigma_x^2WE(\Delta H\Delta H^H)W^H + \sigma^2(\hat{H}^H\hat{H})^{-1}) \\
+&= diag(\sigma_x^2WE(\Delta H\Delta H^H)W^H) + diag(\sigma^2(\hat{H}^H\hat{H})^{-1}) \\
+&= \sigma_x^2diag(WE(\Delta H\Delta H^H)W^H) + \sigma^2diag((\hat{H}^H\hat{H})^{-1})
+\end{split}
+\end{equation} 
+Here, $E(\Delta H\Delta H^H)$ is a diagonal matrix because each value in $\Delta H$ is independent, i.e.,
+\begin{equation}
+E(\Delta H\Delta H^H) = D_e = diag(\sum_{j=0}^{N_t}\Sigma_{\hat{H}}[:, j]),
+\end{equation}
+where $D_e\in \mathbb{R}^{N_r \times N_r}$ and $\Sigma_{\hat{H}}\in \mathbb{R}^{N_r \times N_t}$. $\sum_{j=0}^{N_t}\Sigma_{\hat{H}}[:, j]$ means we sum all columns of $\Sigma_{\hat{H}}$ together to build a column vector.
+
+\subsection{Variance}
+The variance can be expressed in an explicit form,
+\begin{equation}
+var(\hat{x}_i) = \underbrace{E(|[Wn]_i|^2)}_{Noise\,Part} + \underbrace{E(|[W\Delta Hx]_i|^2)}_{Channel\,Estimation\,Error\,Part}
+\label{var-1}
+\end{equation}
+where $E(|[Wn]_i|^2)$ comes from the noise and $E(|[W\Delta Hx]_i|^2)$ comes from the channel estimation error.
+After simplification, \eqref{var-1} can be written as
+\begin{equation}
+var(\hat{x}_i) = \underbrace{\sigma^2\sum_{j=1}^{N_r}|W_{i,j}|^2}_{Noise\,Part} + \underbrace{\sigma_x^2 \sum_{k=1}^{N_t} \sum_{j=1}^{N_r}|W_{ij}|^2 \sigma_{e,jk}^2}_{Channel\,Estimation\,Error\,Part}
+\end{equation}
+\subsubsection{Noise Part}
+\begin{equation}
+\begin{split}
+E(|[Wn]_i|^2) = \sigma^2||W_{i,:}||^2 = \sigma^2\sum_{j=1}^{N_r}|W_{i,j}|^2 
+\end{split}
+\end{equation}
+where $W_{i,:}$ means we take $i$th row from $W$ 
+\subsubsection{Channel Estimation Error Part}
+\begin{equation}
+\begin{split}
+[W\Delta Hx]_i &= \sum_{j=1}^{N_r}W_{ij}\cdot(\sum_{k=1}^{N_t}\Delta H_{jk}x_k)\\
+&= \sum_{j=1}^{N_r}\sum_{k=1}^{N_t}W_{ij}\Delta H_{jk}x_k\\
+&= \sum_{k=1}^{N_t}\sum_{j=1}^{N_r}W_{ij}\Delta H_{jk}x_k\\
+&= \sum_{k=1}^{N_t} x_k (\sum_{j=1}^{N_r}W_{ij}\Delta H_{jk})\\
+\end{split}
+\end{equation}
+Here, $x_k$ and $\Delta H_{jk}$ are independent with zero means, i.e.,
+\begin{equation}
+\begin{split}
+E[|[W\Delta Hx]_i|^2] &= \sum_{k=1}^{N_t} \sigma_x^2 E\left[\left|\sum_{j=1}^{N_r}W_{ij}\Delta H_{jk}\right|^2\right] \\
+&= \sigma_x^2 \sum_{k=1}^{N_t} E\left[\left|\sum_{j=1}^{N_r}W_{ij}\Delta H_{jk}\right|^2\right] \\
+&= \sigma_x^2 \sum_{k=1}^{N_t} \sum_{j=1}^{N_r}|W_{ij}|^2 \sigma_{e,jk}^2 \\
+\end{split}
+\end{equation}
+where $\sigma_{e,jk}$ is $(j,k)$ entry of the estimated channel variance matrix $\Sigma_{\Delta H}$.
+
+\end{document}
