@@ -2,10 +2,11 @@ import numpy as np
 from numpy import exp
 from numpy.linalg import inv
 from numpy.linalg import norm as vecnorm
+import torch
 from whatshow_toolbox import *;
 eps = np.finfo(float).eps;
 
-class JPIC(MatlabFuncHelper):
+class JPICNet(MatlabFuncHelper):
     # constants
     # PUL (pulse)
     PUL_BIORT   = 1;        # bi-orthogonal pulse
@@ -54,6 +55,8 @@ class JPIC(MatlabFuncHelper):
     # confidence
     CONF_RECIP_MIN = 1e-10;
     CONF_RECIP = 1e-6;
+    # batch
+    B0 = None;
     
     # properties
     constel = None;
@@ -88,6 +91,9 @@ class JPIC(MatlabFuncHelper):
     Xp = None;                          # pilots values (a matrix)
     XpMap = None;                       # the pilot map
     XdLocs = [];                        # data locations matrix
+    # batch
+    B = B0;
+     
     
     '''
     constructor
@@ -96,7 +102,7 @@ class JPIC(MatlabFuncHelper):
     @iter_num:          the maximal iteration.
     @iter_diff_min:     the minimal difference in **DSC** to early stop.
     '''
-    def __init__(self, constel, *, min_var=None, iter_num=None, iter_diff_min = None, batch_size=None):
+    def __init__(self, constel, *, min_var=None, iter_num=None, iter_diff_min = None, B=None):
         constel = np.asarray(constel).squeeze();
         if constel.ndim != 1:
             raise Exception("The constellation must be a vector.");
@@ -113,8 +119,8 @@ class JPIC(MatlabFuncHelper):
         if iter_diff_min:
             self.iter_diff_min = iter_diff_min;
         # optionl inputs - batch_size
-        if batch_size is not None:
-            self.batch_size = batch_size;
+        if B is not None:
+            self.B = B;
         
     '''
     settings - pulse type
@@ -209,15 +215,15 @@ class JPIC(MatlabFuncHelper):
     
     '''
     symbol detection
-    @Y_DD:          the received signal in the delay Doppler domain [(batch_size), doppler, delay]
+    @Y_DD:          the received signal in the delay Doppler domain [B, doppler, delay]
     @lmax:          the maximal delay index
     @kmax:          the maximal Doppler index
     @No:            the noise (linear) power or a vector of noise [B] (variant noise power)
     @sym_map(opt):  false by default. If true, the output will be mapped to the constellation
     '''
     def detect(self, Y_DD, lmax, kmax, No, *, sym_map=False):
-        Y_DD = np.asarray(Y_DD);
-        No = np.asarray(No);
+        Y_DD = torch.from_numpy(np.asarray(Y_DD));
+        No = torch.from_numpy(np.asarray(No));
         
         # input check
         if Y_DD.shape[-2] != self.N or Y_DD.shape[-1] != self.M:
@@ -354,7 +360,60 @@ class JPIC(MatlabFuncHelper):
             for l in range(self.M):
                 self.XpMap[k, l] = True if abs(Xp[k, l]) > 1e-5 else False;
     
-    
+    '''
+    get his full list as the format below
+        path gains:     h0, h1, h2, ... 
+        delay:          l0, l0, l0, ..., l0,   l1, l1, l1, l1, ..., l1,   ...
+        Doppler:        k0, k1, k2, ..., kmax, k0, k0, k1, k2, ..., kmax, ...
+    @his:   the path gains
+    @lis:   the delay
+    @kis:   the doppler 
+    @lmax:  the maximal delay index
+    @kmax:  the maximal Doppler index
+    '''
+    def getHisFullList(self, his, lis, kis, lmax, kmax):
+        his = np.asarray(his);
+        lis = np.asarray(lis);
+        kis = np.asarray(kis);
+        # input check
+        if self.B is self.B0 and his.ndim != 1 or self.B is not self.B0 and his.ndim != 2:
+            raise Exception("The path gain must be a vector.")
+        if self.B is self.B0 and lis.ndim != 1 or self.B is not self.B0 and lis.ndim != 2:
+            raise Exception("The delay must be a vector.")
+        if self.B is self.B0 and kis.ndim != 1 or self.B is not self.B0 and kis.ndim != 2:
+            raise Exception("The Doppler must be a vector.")
+        if his.shape[-1] != lis.shape[-1]:
+            raise Exception("The delay should be the same dimension with the path gain.");
+        if his.shape[-1] != kis.shape[-1]:
+            raise Exception("The Doppler should be the same dimension with the path gain.");
+        # generate the path gain list
+        p_len = his.shape[-1];
+        batch_size = 1 if self.B is self.B0 else self.B;
+        pmax = (2*kmax+1)*(lmax+1);
+        his_new = np.zeros([batch_size, pmax], dtype=complex);
+        # generate the list 
+        his_mask = np.zeros([batch_size, pmax], dtype=bool);
+        # match input dimensions
+        if self.B is self.B0:
+            his = his[np.newaxis, :]
+            lis = lis[np.newaxis, :]
+            kis = kis[np.newaxis, :]
+        # fill the new path gain list
+        for bid in range(batch_size):
+            for pid in range(p_len):
+                hi = his[bid, pid]
+                li = lis[bid, pid]
+                ki = kis[bid, pid]
+                hi_shift = li*(2*kmax+1) + kmax + ki
+                his_new[bid, hi_shift] = hi
+                his_mask[bid, hi_shift] = True
+        if self.B is self.B0:
+            his_new = his_new.squeeze(0)
+            his_mask = his_mask.squeeze(0)
+            
+        return his_new, his_mask
+                
+                 
     '''
     build Phi - the channel estimation matrix
     @X:     the Tx matrix in DD domain ([batch_size], doppler, delay)
@@ -462,7 +521,7 @@ class JPIC(MatlabFuncHelper):
         # opt - the data locs matrix
         # if not given, we assume its all data
         if XdLocs is None:
-            self.XdLocs = np.ones([self.batch_size, self.N, self.M]);
+            self.XdLocs = np.ones([self.N, self.M]) if self.batch_size is self.BATCH_SIZE_NO else np.ones([self.batch_size, self.N, self.M]);
         else:
             self.XdLocs = np.asarray(XdLocs) if self.batch_size is self.BATCH_SIZE_NO else np.tile(XdLocs, (self.batch_size, 1, 1));
             if self.XdLocs.shape[-2] != self.N:

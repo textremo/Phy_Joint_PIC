@@ -5,8 +5,10 @@ import numpy as np
 class CPE(object):
     # constants
     PIL_VAL = (1+1j)/np.sqrt(2);
+    BATCH_SIZE_NO = None;
     
     # variables
+    otfsconfig = None;
     M = 0; # subcarrier number
     N = 0; # timeslot number
     lmax = 0;
@@ -28,6 +30,7 @@ class CPE(object):
     @No: the noise power
     '''
     def __init__(self, otfsconfig, lmax, Es_d, No):
+        self.otfsconfig = otfsconfig;
         self.M = otfsconfig.M;
         self.N = otfsconfig.N;
         self.lmax = lmax;
@@ -68,30 +71,27 @@ class CPE(object):
         Y_DD_area_sum = None;
         est_area = np.zeros([self.batch_size, self.N, self.area_len]).astype(complex);
         ca_id_beg = 0;
-        ca_id_end = self.area_len - 1;
+        ca_id_end = self.area_len;
         # accumulate all areas together
         for area_id in range(self.area_num):
-            est_area = est_area + Y_DD[..., :, ca_id_beg:ca_id_end];
-            ca_id_beg = ca_id_end + 1;
-            ca_id_end = ca_id_end + self.area_len - 1;
+            # build the phase matrix
+            est_area = est_area + Y_DD[..., :, ca_id_beg:ca_id_end]*self.getPhaseConjMat(area_id);
+            ca_id_beg = ca_id_end;
+            ca_id_end = ca_id_end + self.area_len;
         est_area = est_area/self.area_num;
         # find paths
         # estimate the channe
         his = [];
         kis = [];
         lis = [];
-        for k_id in range(0, self.N):
-            for l_id in range(0, self.area_len):
+        for l_id in range(0, self.area_len):
+            for k_id in range(0, self.N):
                 pss_ys = np.expand_dims(est_area[k_id, l_id], axis=0) if self.batch_size == self.BATCH_SIZE_NO else est_area[..., k_id, l_id];
                 pss_ys_ids_yes = abs(pss_ys)**2 > self.thres;
                 pss_ys_ids_not = abs(pss_ys)**2 <= self.thres;
                 li = l_id - self.pl;
                 ki = k_id - self.pk;
-                if self.otfsconfig.isPulIdeal():
-                    pss_beta = np.exp(-2j*np.pi*li*ki/self.M/self.N);
-                elif self.otfsconfig.isPulRecta():
-                    pss_beta = np.exp(2j*np.pi*self.pl*ki/self.M/self.N);
-                hi = pss_ys/self.pil_val/pss_beta;
+                hi = pss_ys/self.pil_val;
                 # at least we find one path
                 if np.sum(pss_ys_ids_yes, axis=None) > 0:
                     if self.batch_size == self.BATCH_SIZE_NO:
@@ -112,3 +112,32 @@ class CPE(object):
                             lis = np.append(lis, li, axis=-1);
                             kis = np.append(kis, ki, axis=-1);
         return his, lis, kis;
+    
+    '''
+    build the phase Conj matrix
+    @area_id: the area index
+    '''
+    def getPhaseConjMat(self, area_id):
+        if area_id < 0 or area_id >= self.area_num:
+            raise Exception("Area Id is illegal.");
+        phaseConjMat = np.zeros((self.N, self.area_len), dtype=complex);
+        for ki in range(0, self.N):
+            for li in range(0, self.area_len):
+                if self.otfsconfig.isPulIdeal():
+                    phaseConjMat[ki, li] = np.exp(2j*np.pi*li*(ki-self.pk)/self.M/self.N);
+                elif self.otfsconfig.isPulRecta():
+                    phaseConjMat[ki, li] = np.exp(-2j*np.pi*self.pls[area_id]*(ki-self.pk)/self.M/self.N);
+                else:
+                    raise Exception("The pulse type is unkownn.");
+        if self.batch_size is not self.BATCH_SIZE_NO:
+            phaseConjMat = np.tile(phaseConjMat, (self.batch_size, 1, 1));
+        
+        return phaseConjMat;
+        
+            
+    
+    '''
+    check whether the channel path number are equal
+    '''
+    def chkChPathNum(self, his):
+        pass

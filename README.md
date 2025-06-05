@@ -10,3 +10,6 @@ This repository offers a joint channel estimation and symbol detection implement
     pip install whatshow-toolbox
     pip install whatshow-phy-joint-pic
     ```
+* After Installation
+    * `Matlab`: run `init` to load all paths
+    * `Python`: run `init.py` to test whether all required packages are installed. 
