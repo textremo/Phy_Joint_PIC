@@ -40,17 +40,9 @@ class OTFSConfig(object):
     # energy
     Es_d = 0;           # data energy
     Es_p = 0;           # piloter energy
-    # batch_size
-    batch_size = None;
-    
-    
-    '''
-    init
-    @batch_size: batch_size
-    '''
-    def __init__(self, *, batch_size = None):
-        if batch_size is not None:
-            self.batch_size = batch_size;
+    # 
+    sig_len = 0;
+    data_len = 0;
     
     '''
     set the frame
@@ -72,6 +64,8 @@ class OTFSConfig(object):
         self.M = M;
         self.N = N;
         self.zp_len = zp_len;
+        self.sig_len = M*N
+        self.data_len = M*N;
         
     '''
     set the pulse tye

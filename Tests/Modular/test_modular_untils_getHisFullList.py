@@ -1,10 +1,14 @@
+from IPython import get_ipython
+get_ipython().magic('reset -f')
+get_ipython().magic('clear')
+
 import numpy as np
 from whatshow_phy_mod_otfs import OTFS, OTFSResGrid, OTFSDetector
 from OTFSConfig import OTFSConfig
-from JPICNet import JPICNet
+from Utils.utils import getHisFullList
 
 print("------------------------------------------------------------------------")
-print("JPICNet: getHisFullList()\n")
+print("Utils: getHisFullList()\n")
 # configuration
 N = 15;     # timeslote number
 M = 16;     # subcarrier number
@@ -54,13 +58,7 @@ otfs.passChannel(0);
 his, lis, kis = otfs.getCSI();
 HDD = otfs.getChannel();
 
-# joint detection
-jpicnet = JPICNet(constel);
-# Tests - Recta - OTFS(Embed)
-jpicnet.setPul2Recta();
-jpicnet.setMod2OtfsEM(M, N);
-
-his_new, his_mask = jpicnet.getHisFullList(his, lis, kis, lmax, kmax);
+his_new, his_mask = getHisFullList(his, lis, kis, lmax, kmax);
 lis_full = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);
 kis_full = np.tile(np.arange(-kmax, kmax+1), lmax+1);
 # case 0
@@ -82,7 +80,7 @@ print("batched case - 1")
 batch_size = 1;
 # init generalised variables
 # config
-otfsconfig = OTFSConfig(batch_size = batch_size);
+otfsconfig = OTFSConfig();
 otfsconfig.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, M, N);
 otfsconfig.setPul(OTFSConfig.PUL_TYPE_RECTA);
 # OTFS module
@@ -110,12 +108,7 @@ his, lis, kis = otfs.getCSI();
 HDD = otfs.getChannel();
 
 # joint detection
-jpicnet = JPICNet(constel, B=batch_size);
-# Tests - Recta - OTFS(Embed)
-jpicnet.setPul2Recta();
-jpicnet.setMod2OtfsEM(M, N);
-
-his_new, his_mask = jpicnet.getHisFullList(his, lis, kis, lmax, kmax);
+his_new, his_mask = getHisFullList(his, lis, kis, lmax, kmax, B=batch_size);
 lis_full = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);
 kis_full = np.tile(np.arange(-kmax, kmax+1), lmax+1);
 # case 0
@@ -138,7 +131,7 @@ print("batched case - 10")
 batch_size = 10;
 # init generalised variables
 # config
-otfsconfig = OTFSConfig(batch_size = batch_size);
+otfsconfig = OTFSConfig();
 otfsconfig.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, M, N);
 otfsconfig.setPul(OTFSConfig.PUL_TYPE_RECTA);
 # OTFS module
@@ -165,13 +158,7 @@ otfs.passChannel(0);
 his, lis, kis = otfs.getCSI();
 HDD = otfs.getChannel();
 
-# joint detection
-jpicnet = JPICNet(constel, B=batch_size);
-# Tests - Recta - OTFS(Embed)
-jpicnet.setPul2Recta();
-jpicnet.setMod2OtfsEM(M, N);
-
-his_new, his_mask = jpicnet.getHisFullList(his, lis, kis, lmax, kmax);
+his_new, his_mask = getHisFullList(his, lis, kis, lmax, kmax, B=batch_size);
 lis_full = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);
 kis_full = np.tile(np.arange(-kmax, kmax+1), lmax+1);
 # case 0

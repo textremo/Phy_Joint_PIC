@@ -3,19 +3,12 @@ from numpy import exp
 from numpy.linalg import inv
 from numpy.linalg import norm as vecnorm
 import torch
+import torch.nn as nn
 from whatshow_toolbox import *;
 eps = np.finfo(float).eps;
 
-class JPICNet(MatlabFuncHelper):
+class JPICNet(nn.Module):
     # constants
-    # PUL (pulse)
-    PUL_BIORT   = 1;        # bi-orthogonal pulse
-    PUL_RECTA   = 2;        # rectangular pulse
-    # MOD (modulation)
-    MOD_OFDM = 10;
-    MOD_OTFS = 20;          # perfect csi
-    MOD_OTFS_EM = 21;
-    MOD_OTFS_SP = 22;
     # CE (channel estimation)
     CE_MRC = 1;
     CE_ZF = 1;
@@ -35,9 +28,6 @@ class JPICNet(MatlabFuncHelper):
     SD_BSO_VAR_CAL_MMSE   = 1;
     SD_BSO_VAR_CAL_MRC    = 2;  
     SD_BSO_VAR_CAL_LS     = 3;
-    # SD - BSE
-    SD_BSE_ON   = 1;
-    SD_BSE_OFF  = 0;
     # SD - DSC
     # SD - DSC - instantaneous square error
     SD_DSC_ISE_MMSE    = 1;
@@ -62,10 +52,6 @@ class JPICNet(MatlabFuncHelper):
     constel = None;
     constel_len = 0;
     es = 1;                                             # constellation average power
-    # Pulse
-    pulse_type              = PUL_RECTA;
-    # MOD
-    mod_type                = MOD_OTFS;
     # CE
     ce_type                 = CE_MRC;
     # SD
@@ -73,36 +59,34 @@ class JPICNet(MatlabFuncHelper):
     sd_bso_mean_cal         = SD_BSO_MEAN_CAL_MRC;
     sd_bso_var              = SD_BSO_VAR_TYPE_ACCUR;
     sd_bso_var_cal          = SD_BSO_VAR_CAL_MRC;
-    sd_bse                  = SD_BSE_OFF;
     sd_dsc_ise              = SD_DSC_ISE_MRC;
     sd_dsc_mean_prev_sour   = SD_DSC_MEAN_PREV_SOUR_BSE;
     sd_dsc_var_prev_sour    = SD_DSC_VAR_PREV_SOUR_BSE;
     sd_out                  = SD_OUT_DSC;
     # other settings
-    is_early_stop           = False;
     min_var                 = eps;      # the default minimal variance is 2.2204e-16
     iter_num                = 10;       # maximal iteration
-    iter_diff_min           = eps;      # the minimal difference between 2 adjacent iterations 
     # OTFS configuration
-    sig_len = 0;
-    data_len = 0;
-    M = 0;                              # the subcarrier number
-    N = 0;                              # the timeslot number
-    Xp = None;                          # pilots values (a matrix)
-    XpMap = None;                       # the pilot map
-    XdLocs = [];                        # data locations matrix
+    oc = None
+    Xp = None                           # pilots values (a matrix)
+    XpMap = None                        # the pilot map
+    XdLocs = None                       # data locations matrix
     # batch
     B = B0;
-     
+    # torch
+    device = torch.device('cpu')
+    
     
     '''
     constructor
+    @oc:                OTFS configuration
     @constel:           the constellation, a vector.
+    @device:            the device to run the model
     @min_var:           the minimal variance.
     @iter_num:          the maximal iteration.
-    @iter_diff_min:     the minimal difference in **DSC** to early stop.
+    @B(opt):            batch size
     '''
-    def __init__(self, constel, *, min_var=None, iter_num=None, iter_diff_min = None, B=None):
+    def __init__(self, oc, constel, *, min_var=None, iter_num=None, B=None, device=None):
         constel = np.asarray(constel).squeeze();
         if constel.ndim != 1:
             raise Exception("The constellation must be a vector.");
@@ -110,43 +94,16 @@ class JPICNet(MatlabFuncHelper):
             self.constel = constel;
             self.constel_len = len(constel);
             self.es = np.sum(abs(constel)**2)/self.constel_len;
+        self.oc = oc;
         
         # optionl inputs
-        if min_var is not None:
-            self.min_var = min_var;
-        if iter_num is not None:
-            self.iter_num = iter_num;
-        if iter_diff_min:
-            self.iter_diff_min = iter_diff_min;
-        # optionl inputs - batch_size
-        if B is not None:
-            self.B = B;
+        if min_var is not None:     self.min_var    = min_var
+        if iter_num is not None:    self.iter_num   = iter_num
+        if B is not None:           self.B          = B
+        if device is not None:      self.device     = device
         
-    '''
-    settings - pulse type
-    '''
-    def setPul2Biort(self):
-        self.pulse_type = self.PUL_BIORT;
-    def setPul2Recta(self):
-        self.pulse_type = self.PUL_RECTA;
-    
-    '''
-    settings - MOD - OFDM
-    '''
-    def setMod2Ofdm(self):
-        self.mod_type = self.MOD_OFDM;
-    '''
-    settings - MOD - OTFS
-    '''    
-    def setMod2Otfs(self, M, N):
-        self.mod_type = self.MOD_OTFS;
-        self.setOTFS(M, N);
-    def setMod2OtfsEM(self, M, N, *, Xp=None, XdLocs=None):
-        self.mod_type = self.MOD_OTFS_EM;
-        self.setOTFS(M, N, Xp=Xp, XdLocs=XdLocs);
-    def setMod2OtfsSP(self, M, N, *, Xp=None, XdLocs=None):
-        self.mod_type = self.MOD_OTFS_SP;
-        self.setOTFS(M, N, Xp=Xp, XdLocs=XdLocs);
+        # nn.parameters
+        # buffer
     
     '''
     settings - CE
@@ -183,11 +140,6 @@ class JPICNet(MatlabFuncHelper):
         self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_MRC;
     def setSdBsoVarCal2LS(self):
         self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_LS;
-    # settings - SD - BSE
-    def setSdBseOn(self):
-        self.sd_bse = self.SD_BSE_ON;
-    def setSdBseOff(self):
-        self.sd_bse = self.SD_BSE_OFF;
     # settings - SD - DSC - instantaneous square error
     def setSdDscIse2MMSE(self):
         self.sd_dsc_ise = self.SD_DSC_ISE_MMSE;
@@ -205,44 +157,50 @@ class JPICNet(MatlabFuncHelper):
         self.sd_dsc_var_prev_sour = self.SD_DSC_VAR_PREV_SOUR_BSE;
     def setSdDscVarPrevSour2DSC(self):
         self.sd_dsc_var_prev_sour = self.SD_DSC_VAR_PREV_SOUR_DSC;
-    # settings - SD - OUT
-    def setSdOut2BSE(self):
-        if self.sd_bse == self.SD_BSE_OFF:
-            raise Exception("Cannot use BSE output because BSE module is off.");
-        self.sd_out = self.SD_OUT_BSE;
-    def setSdOut2DSC(self):
-        self.sd_out = self.SD_OUT_DSC;
     
     '''
     symbol detection
-    @Y_DD:          the received signal in the delay Doppler domain [B, doppler, delay]
+    @Y:             the received signal in the delay Doppler domain [B, 2, doppler, delay]
+    @Xp:            the pilot in the delay Doppler domain [B, 2, doppler, delay]
+    @his:           initial channel estimation - path gains [B, 2, Pmax]
+    @his_mask:      initial channel estimation - mask [B, 2, Pmax]
     @lmax:          the maximal delay index
     @kmax:          the maximal Doppler index
     @No:            the noise (linear) power or a vector of noise [B] (variant noise power)
+    @XdLocs(opt):   [B, 2, doppler, delay]
     @sym_map(opt):  false by default. If true, the output will be mapped to the constellation
     '''
-    def detect(self, Y_DD, lmax, kmax, No, *, sym_map=False):
-        Y_DD = torch.from_numpy(np.asarray(Y_DD));
-        No = torch.from_numpy(np.asarray(No));
-        
-        # input check
-        if Y_DD.shape[-2] != self.N or Y_DD.shape[-1] != self.M:
-            raise Exception("The received matrix is not in the shape of (%d, %d)."%(self.N, self.M));
-        if No.ndim > 0 and No.shape[-1] != self.batch_size:
-            raise Exception("The noise power is not a scalar.");
+    def detect(self, Y, Xp, his, lis, kis, lmax, kmax, No, *, XdLocs=None, sym_map=False):
+        if self.B is self.B0:
+            raise Exception("The neural network requires batched data. Please set a batch size first.");
+        # inputs
+        Y = torch.as_tensor(Y).to(self.device)
+        Xp = torch.as_tensor(Xp).to(self.device)
+        # CSI
+        his, his_mask = self.getHisFullList(his, lis, kis, lmax, kmax)
+        his = torch.as_tensor(his).to(self.device)
+        his_mask = torch.as_tensor(his_mask).to(self.device)
+        lis = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);
+        kis = np.tile(np.arange(-kmax, kmax+1), lmax+1);
+        # noise
+        No = torch.as_tensor(No).to(self.device)
+        # optional inputs
+        if XdLocs is None:  XdLocs = torch.ones([self.B, 2, self.oc.N, self.oc.M], dtype=torch.bool)
+        XdLocs = torch.as_tensor(XdLocs).to(self.device)
             
         # constant values
-        y = self.reshape(Y_DD, self.sig_len, 1);
-        xp = self.reshape(self.Xp, self.sig_len, 1);
-        xdlocs = self.reshape(self.XdLocs, self.sig_len, 1);
-        xndlocs =  self.reshape(np.invert(xdlocs), self.sig_len, 1);
+        y = torch.reshape(Y, [self.B, 2*self.oc.sig_len, 1])
+        xp = torch.reshape(Xp, [self.B, 2*self.oc.sig_len, 1])
+        xdlocs = torch.reshape(XdLocs, [self.B, 2*self.oc.sig_len, 1])
+        xndlocs = ~xdlocs;
         
         # iterative detection
-        ise_dsc_prev = self.zeros(self.sig_len, 1);
-        #x_bse = self.zeros(self.sig_len, 1);
-        x_dsc = self.zeros(self.sig_len, 1).astype(complex);
-        x_det = self.zeros(self.sig_len, 1).astype(complex);     # the soft symbol detection results
+        ise_dsc_prev = None;
+        x_bso_prev = None;
+        x_dsc = torch.zeros([self.B, 2*self.oc.sig_len, 1]).to(self.device)
+        x_det = torch.zeros([self.B, 2*self.oc.sig_len, 1]).to(self.device);     # the soft symbol detection results
         for iter_id in range(self.iter_num):
+                   
             # CE
             Xe = self.reshape(x_det, self.N, self.M);
             Phi = self.buildPhi(Xe + self.Xp, lmax, kmax);
@@ -254,8 +212,8 @@ class JPICNet(MatlabFuncHelper):
             Hty = Ht @ y;
             HtH = Ht @ H;
             HtH_off = ((self.eye(self.sig_len)+1) - self.eye(self.sig_len)*2)*HtH;
-            #HtH_off_sqr = np.square(HtH_off);
-            # SD
+            
+            # Symbol Detection (SD)
             # SD - BSO
             # SD - BSO - mean
             if iter_id == 0:
@@ -277,6 +235,8 @@ class JPICNet(MatlabFuncHelper):
                     bso_zigma_n = inv(HtH);
                 x_bso = bso_zigma_n @ (Hty - HtH_off@x_dsc - HtH@xp);
             x_bso[xndlocs] = 0;
+
+            # BSE
 
             # SD - DSC
             if self.sd_dsc_ise == self.SD_DSC_ISE_MMSE:
@@ -360,58 +320,7 @@ class JPICNet(MatlabFuncHelper):
             for l in range(self.M):
                 self.XpMap[k, l] = True if abs(Xp[k, l]) > 1e-5 else False;
     
-    '''
-    get his full list as the format below
-        path gains:     h0, h1, h2, ... 
-        delay:          l0, l0, l0, ..., l0,   l1, l1, l1, l1, ..., l1,   ...
-        Doppler:        k0, k1, k2, ..., kmax, k0, k0, k1, k2, ..., kmax, ...
-    @his:   the path gains
-    @lis:   the delay
-    @kis:   the doppler 
-    @lmax:  the maximal delay index
-    @kmax:  the maximal Doppler index
-    '''
-    def getHisFullList(self, his, lis, kis, lmax, kmax):
-        his = np.asarray(his);
-        lis = np.asarray(lis);
-        kis = np.asarray(kis);
-        # input check
-        if self.B is self.B0 and his.ndim != 1 or self.B is not self.B0 and his.ndim != 2:
-            raise Exception("The path gain must be a vector.")
-        if self.B is self.B0 and lis.ndim != 1 or self.B is not self.B0 and lis.ndim != 2:
-            raise Exception("The delay must be a vector.")
-        if self.B is self.B0 and kis.ndim != 1 or self.B is not self.B0 and kis.ndim != 2:
-            raise Exception("The Doppler must be a vector.")
-        if his.shape[-1] != lis.shape[-1]:
-            raise Exception("The delay should be the same dimension with the path gain.");
-        if his.shape[-1] != kis.shape[-1]:
-            raise Exception("The Doppler should be the same dimension with the path gain.");
-        # generate the path gain list
-        p_len = his.shape[-1];
-        batch_size = 1 if self.B is self.B0 else self.B;
-        pmax = (2*kmax+1)*(lmax+1);
-        his_new = np.zeros([batch_size, pmax], dtype=complex);
-        # generate the list 
-        his_mask = np.zeros([batch_size, pmax], dtype=bool);
-        # match input dimensions
-        if self.B is self.B0:
-            his = his[np.newaxis, :]
-            lis = lis[np.newaxis, :]
-            kis = kis[np.newaxis, :]
-        # fill the new path gain list
-        for bid in range(batch_size):
-            for pid in range(p_len):
-                hi = his[bid, pid]
-                li = lis[bid, pid]
-                ki = kis[bid, pid]
-                hi_shift = li*(2*kmax+1) + kmax + ki
-                his_new[bid, hi_shift] = hi
-                his_mask[bid, hi_shift] = True
-        if self.B is self.B0:
-            his_new = his_new.squeeze(0)
-            his_mask = his_mask.squeeze(0)
-            
-        return his_new, his_mask
+    
                 
                  
     '''
@@ -491,45 +400,6 @@ class JPICNet(MatlabFuncHelper):
     ###########################################################################
     # private methods
     ###########################################################################
-    '''
-    set OTFS
-    @M:             subcarrier number
-    @N:             timeslot numberr
-    @Xp(opt):       the pilot value matrix (N, M)
-    @XdLocs(opt):   the data locs matrix (N, M)
-    '''
-    def setOTFS(self, M, N, *, Xp=None, XdLocs=None):
-        # OTFS size
-        if M < 1 or not isinstance(M, int):
-            raise Exception("The subcarrier number cannot be less than 1 or a fractional number");
-        else:
-            self.M = M;
-        if N < 1 or not isinstance(N, int):
-            raise Exception("The timeslot number cannot be less than 1 or a fractional number.");
-        else:
-            self.N = N;
-        self.sig_len = M*N;
-        self.data_len = M*N;
-        # opt
-        # opt - the pilot value matrix
-        if Xp is not None:
-            self.Xp = np.asarray(Xp) if self.batch_size is self.BATCH_SIZE_NO else np.tile(Xp, (self.batch_size, 1, 1));
-            if self.Xp.shape[-2] != self.N:
-                raise Exception("The timeslot number of the pilot matrix is not same as the given timeslot number.");
-            elif self.Xp.shape[-1] != self.M:
-                raise Exception("The subcarrier number of the pilot matrix is not same as the given subcarrier number.");
-        # opt - the data locs matrix
-        # if not given, we assume its all data
-        if XdLocs is None:
-            self.XdLocs = np.ones([self.N, self.M]) if self.batch_size is self.BATCH_SIZE_NO else np.ones([self.batch_size, self.N, self.M]);
-        else:
-            self.XdLocs = np.asarray(XdLocs) if self.batch_size is self.BATCH_SIZE_NO else np.tile(XdLocs, (self.batch_size, 1, 1));
-            if self.XdLocs.shape[-2] != self.N:
-                raise Exception("The timeslot number of the data location matrix is not same as the given timeslot number.");
-            elif self.XdLocs.shape[-1] != self.M:
-                raise Exception("The subcarrier number of the data location matrix is not same as the given subcarrier number.");
-            self.data_len = np.sum(self.XdLocs);
-    
     '''
     build the ideal pulse DD channel (callable after modulate)
     @taps_num:  the number of paths
