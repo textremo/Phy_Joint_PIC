@@ -19,7 +19,7 @@ M = 16;     # subcarrier number
 QAM = 4;
 constel = [-0.7071-0.7071j, -0.7071+0.7071j, 0.7071-0.7071j, 0.7071+0.7071j];
 SNR_d = 14;
-SNR_p = 37;
+SNR_p = 40.25399848;
 No = 10**(-SNR_d/10);
 Es_d = 1;
 Es_p = 10**((SNR_p - SNR_d)/10);
@@ -37,13 +37,13 @@ iter_num = 10;
 init generalised variables
 '''
 # config
-otfsconfig = OTFSConfig(batch_size = batch_size);
+otfsconfig = OTFSConfig();
 otfsconfig.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, M, N);
 otfsconfig.setPul(OTFSConfig.PUL_TYPE_RECTA);
 # OTFS module
 otfs = OTFS(batch_size=batch_size);
 # CPE
-cpe = CPE(otfsconfig, lmax, Es_d, No);
+cpe = CPE(otfsconfig, lmax, kmax, Es_d, No, B=batch_size);
 # pilots
 X_p = cpe.genPilots(Es_p);
 
@@ -80,7 +80,7 @@ otfs.passChannel(No);
 his, lis, kis = otfs.getCSI();
 H_DD = otfs.getChannel();
 his_full = realH2Hfull(kmax, lmax, his, lis, kis, batch_size=batch_size);
-
+his_mask = abs(his_full) > 0
 
 '''
 Rx
@@ -108,31 +108,42 @@ his_full_diff = abs(his_full_est - his_full);
 
 
 print("- CPE threshold (power): %f"%cpe.thres)
-print("- CHE check (less):")
-diff_num_less = 0;
+print("- CHE check (missing):")
+diff_num_miss = 0;
 for bid in range(batch_size):
     for li in range(lmax + 1):
         for ki in range(-kmax, kmax+1):
             his_shift = li*(2*kmax+1) + kmax + ki;
             y_pow = abs(his_full_est[bid, his_shift]*cpe.pil_val)**2;
-            if his_full_diff[bid, his_shift] > 1e-13 and y_pow <= cpe.thres:
-                diff_num_less += 1
+            if his_mask[bid, his_shift] and y_pow <= cpe.thres:
+                diff_num_miss += 1
                 print(f"  - [{bid:2d}, {his_shift:2d}], origin: {his_full[bid, his_shift]:+.4f}, est: {his_full_est[bid, his_shift]:+.4f}")
-print("- CHE check (greater):")
-diff_num_grea = 0;
+print("- CHE check (error):")
+diff_num_erro = 0;
 for bid in range(batch_size):
     for li in range(lmax + 1):
         for ki in range(-kmax, kmax+1):
             his_shift = li*(2*kmax+1) + kmax + ki;
             y_pow = abs(his_full_est[bid, his_shift]*cpe.pil_val)**2;
-            if his_full_diff[bid, his_shift] > 1e-13 and y_pow > cpe.thres:
-                diff_num_grea += 1
+            if not his_mask[bid, his_shift] and y_pow > cpe.thres:
+                diff_num_erro += 1
                 print(f"  - [{bid:2d}, {his_shift:2d}], origin: {his_full[bid, his_shift]:+.4f}, est: {his_full_est[bid, his_shift]:+.4f}, diff: {his_full_diff[bid, his_shift]: .4f}")
-                
+print("- CHE check (correct):")
+diff_num_corr = 0;  
+for bid in range(batch_size):
+    for li in range(lmax + 1):
+        for ki in range(-kmax, kmax+1):
+            his_shift = li*(2*kmax+1) + kmax + ki;
+            y_pow = abs(his_full_est[bid, his_shift]*cpe.pil_val)**2;
+            if his_mask[bid, his_shift] and y_pow > cpe.thres:
+                diff_num_corr += 1
+                print(f"  - [{bid:2d}, {his_shift:2d}], origin: {his_full[bid, his_shift]:+.4f}, est: {his_full_est[bid, his_shift]:+.4f}, diff: {his_full_diff[bid, his_shift]: .4f}")
 
-if diff_num_less + diff_num_grea != np.sum(his_full_diff > 1e-13):
-    raise Exception("Difference not match!");
-else:
-    print(f"- find {diff_num_less + diff_num_grea} difference, at max {np.max(his_full_diff):.4f}.")
+
+# if diff_num_less + diff_num_grea != np.sum(his_full_diff > 1e-13):
+#     raise Exception("Difference not match!");
+# else:
+max_pos = np.unravel_index(np.argmax(his_full_diff), his_full_diff.shape)
+print(f"- find {diff_num_miss + diff_num_erro} difference, at max [{max_pos[0]}, {max_pos[1]}] {np.max(his_full_diff):.4f}.")
 
 print("------------------------------------------------------------------------")

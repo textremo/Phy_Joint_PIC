@@ -3,7 +3,7 @@ clc;
 % this script is to calculate the threshold of the system
 % parameters
 pmax = 16; % the maximal path number
-SNR_d = 20;
+SNR_d = 14;
 No = 10^(-SNR_d/10);
 powXd = 1;
 % probabilties
@@ -32,8 +32,8 @@ for p = 1:pmax
     fprintf("Path is %d: SNR_p is %.8f, SNR_p-SNR_d is %.8f\n", p, SNR_p, (SNR_p-SNR_d));
 end
 
-A = randi(100, 4, 1) + 1i * randi(100, 4, 1);% 随机生成一个4*1的列向量A
-B = null(A.');% 求解A的转置的零空间
-b1 = B(:, 1); b2 = B(:, 2); b3 = B(:, 3);% 得到A的零空间的标准正交基
-A_orth = randi(100)*b1 + randi(100)*b2 + randi(100)*b3;% 随机构建A的正交向量
-A_orth = conj(A_orth);
+% A = randi(100, 4, 1) + 1i * randi(100, 4, 1);% 随机生成一个4*1的列向量A
+% B = null(A.');% 求解A的转置的零空间
+% b1 = B(:, 1); b2 = B(:, 2); b3 = B(:, 3);% 得到A的零空间的标准正交基
+% A_orth = randi(100)*b1 + randi(100)*b2 + randi(100)*b3;% 随机构建A的正交向量
+% A_orth = conj(A_orth);

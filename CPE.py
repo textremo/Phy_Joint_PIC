@@ -1,23 +1,31 @@
 from scipy.stats.distributions import chi2
 import numpy as np
 
+eps = np.finfo(np.float64).eps
 
 class CPE(object):
     # constants
+    EST_LS      = 0
+    EST_MMSE    = 1
+    
     PIL_VAL = (1+1j)/np.sqrt(2);
     BATCH_SIZE_NO = None;
+    
     
     # variables
     otfsconfig = None;
     M = 0; # subcarrier number
     N = 0; # timeslot number
-    lmax = 0;
+    lmax = 0
+    kmin = 0
     kmax = 0
     area_num = 0;
     pl = 0;
     pk = 0;
     pls = [];
-    Es_p = 0;
+    Es_p = 0
+    Es_d = 0
+    No = 0
     batch_size = 0;
     # variables - pilots
     pil_val = None;
@@ -35,23 +43,33 @@ class CPE(object):
         self.otfsconfig = otfsconfig;
         self.M = otfsconfig.M;
         self.N = otfsconfig.N;
-        self.lmax = lmax;
-        self.kmax = kmax
+        self.lmax = lmax
         self.area_len = lmax + 1;
         self.area_num = np.floor(otfsconfig.M / self.area_len).astype(int);
         if self.area_num <= 0:
             raise Exception("There is no space for pilots.");
         # calculate the Doppler positions
         self.pk = np.floor((self.N - 1)/2).astype(int);
+        # update the k (Doppler) range
+        self.kmin = -kmax if self.pk - self.kmax > 0 else -self.pk
+        self.kmax =  kmax if self.pk + kmax < self.N else self.N - self.pk
         # calculate the delay positions
         pl = 0;
         for area_id in range(self.area_num):
             self.pls.append(pl);
             pl = pl + lmax + 1;
         # calculate the threshold
-        self.rho = chi2.ppf(0.9999, 2*self.area_num)/(2*self.area_num);
-        self.thres = self.rho*(Es_d + No);
+        self.Es_d = Es_d
+        self.No = No
+        self.rho = chi2.ppf(0.9999, 2*self.area_num)/(2*self.area_num)
+        self.thres = self.rho*(Es_d + No)
         self.batch_size = B
+        
+    '''
+    get the Doppler range
+    '''
+    def getKRange(self):
+        return self.kmin, self.kmax
         
     '''
     generate pilots
@@ -68,9 +86,10 @@ class CPE(object):
     '''
     estimate the path (h, k, l)
     @Y_DD: the received resrouce grid (N, M)
-    @isAll(opt):    estimate all paths  
+    @isAll(opt):    estimate all paths
+    @etype:         the estimation type
     '''    
-    def estPaths(self, Y_DD, *, isAll=False):
+    def estPaths(self, Y_DD, *, isAll=False, etype=EST_LS):
         # we sum all area together
         est_area = np.zeros([self.N, self.area_len], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.N, self.area_len], dtype=complex);
         ca_id_beg = 0;
@@ -83,45 +102,55 @@ class CPE(object):
             ca_id_end = ca_id_end + self.area_len;
         est_area = est_area/self.area_num;
         # locate the searching space for ki
-        ki_beg = self.pk - self.kmax if self.pk - self.kmax > 0 else 0 
-        ki_end = self.pk + self.kmax + 1 if self.pk + self.kmax < self.N else self.N
+        ki_beg = self.pk + self.kmin 
+        ki_end = self.pk + self.kmax + 1
         # find paths
-        his = [];
-        his_mask = [];
-        kis = [];
-        lis = [];
+        his = []
+        his_var = []    # estimation error
+        his_mask = []
+        kis = []
+        lis = []
         for l_id in range(0, self.area_len):
             for k_id in range(ki_beg, ki_end):
                 pss_ys = np.expand_dims(est_area[k_id, l_id], axis=0) if self.batch_size == self.BATCH_SIZE_NO else est_area[..., k_id, l_id];
                 pss_ys_ids_yes = abs(pss_ys)**2 > self.thres;
                 pss_ys_ids_not = abs(pss_ys)**2 <= self.thres;
-                li = l_id - self.pl;
+                li = l_id - self.pls[0];
                 ki = k_id - self.pk;
-                hi = pss_ys/self.pil_val;
+                
+                if etype == self.EST_LS:
+                    hi = pss_ys/self.pil_val;
+                    hi_var = np.tile(self.Es_d/self.Es_p + self.No/self.Es_p, pss_ys.shape)
+                else:
+                    raise Exception("The estimation method is not supported.")
                 # zero values under the threshold
-                hi[pss_ys_ids_not] = 0; 
+                hi[pss_ys_ids_not] = 0
+                hi_var[pss_ys_ids_not] = eps
                 hi_mask = pss_ys_ids_yes;
                 # at least we find one path
                 if isAll or np.sum(pss_ys_ids_yes, axis=None) > 0:
                     if self.batch_size != self.BATCH_SIZE_NO:
                         hi = hi[..., np.newaxis]
+                        hi_var = hi_var[..., np.newaxis]
                         hi_mask = hi_mask[..., np.newaxis]
                         li = np.tile(li, (self.batch_size, 1));
                         ki = np.tile(ki, (self.batch_size, 1));
                     his.append(hi)     
+                    his_var.append(hi_var)
                     his_mask.append(hi_mask)
                     lis.append(li)
                     kis.append(ki)
         his = np.concatenate(his, -1)
+        his_var = np.concatenate(his_var, -1)
                     
         # return
         if isAll:
             his_mask = np.concatenate(his_mask, -1)
-            return his, his_mask
+            return his, his_var, his_mask
         else:
             lis = np.asarray(lis) if self.batch_size == self.BATCH_SIZE_NO else np.concatenate(lis, -1)
             kis = np.asarray(kis) if self.batch_size == self.BATCH_SIZE_NO else np.concatenate(kis, -1)
-            return his, lis, kis;
+            return his, his_var, lis, kis;
         
     
     '''

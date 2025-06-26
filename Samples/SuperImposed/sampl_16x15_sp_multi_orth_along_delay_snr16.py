@@ -10,7 +10,7 @@ from CPE import CPE
 from JPICNet import JPICNet
 from Utils.utils import realH2Hfull
 
-torch.set_default_dtype(torch.float32)
+torch.set_default_dtype(torch.float64)
 
 
 # configuration
@@ -41,7 +41,7 @@ oc.setPul(OTFSConfig.PUL_TYPE_RECTA);
 # OTFS module
 otfs = OTFS(batch_size=batch_size);
 # CPE
-cpe = CPE(oc, lmax, Es_d, No, B=batch_size);
+cpe = CPE(oc, lmax, kmax, Es_d, No, B=batch_size);
 # pilots
 X_p = cpe.genPilots(Es_p);
 
@@ -51,7 +51,8 @@ sym_idx = np.random.randint(4, size=(batch_size, M*N));
 syms_vec = np.take(constel,sym_idx);
 syms_mat = np.reshape(syms_vec, [batch_size, N, M]);
 # generate X_DD
-X_DD = syms_mat + X_p;
+X_DD = syms_mat + X_p
+xDD = np.reshape(X_DD, [batch_size, M*N])
 # generate
 rg = OTFSResGrid(M, N, batch_size=batch_size);
 rg.setPulse2Recta();
@@ -60,31 +61,27 @@ rg.getContentDataLocsMat();
 
 # channel
 otfs.modulate(rg);
-
-otfs.setChannel(p, lmax, kmax);
-otfs.passChannel(np.tile(No, batch_size));
-his, lis, kis = otfs.getCSI();
-H_DD = otfs.getChannel();
-his_full = realH2Hfull(kmax, lmax, his, lis, kis, batch_size=batch_size);
+otfs.setChannel(p, lmax, kmax)
+otfs.passChannel(np.tile(No, batch_size))
+his, lis, kis = otfs.getCSI()
+Hdd = otfs.getChannel()
 
 # Rx
 rg_rx = otfs.demodulate();
 Y_DD = rg_rx.getContent();
 yDD = np.reshape(Y_DD, [batch_size, M*N]);
 
-# signal processing
-xDD = np.reshape(X_DD, [batch_size, M*N]);
-yDD_est = np.squeeze(H_DD @ np.expand_dims(xDD, axis=-1), axis=-1);
-
 # initial CHE
-his_est, lis_est, kis_est = cpe.estPaths(Y_DD);
+his_est, his_var, his_est_mask = cpe.estPaths(Y_DD, isAll=True)
+kmin, kmax = cpe.getKRange()
 # transfer data to real
-Y_DD = np.concatenate([np.real(Y_DD)[:, np.newaxis], np.imag(Y_DD)[:, np.newaxis]], 1)
-X_p = np.concatenate([np.real(X_p)[:, np.newaxis], np.imag(X_p)[:, np.newaxis]], 1)
-his_est = np.concatenate([np.real(his_est)[..., np.newaxis], np.imag(his_est)[..., np.newaxis]], -1)
-
+#Y_DD = np.concatenate([np.real(Y_DD)[:, np.newaxis], np.imag(Y_DD)[:, np.newaxis]], 1)
+#X_p = np.concatenate([np.real(X_p)[:, np.newaxis], np.imag(X_p)[:, np.newaxis]], 1)
+#his_est = np.concatenate([np.real(his_est)[:, np.newaxis], np.imag(his_est)[:, np.newaxis]], 1)
+#his_est_mask = np.repeat(his_est_mask[:, np.newaxis], 2, axis=1)
 
 # joint detection
-jpic = JPICNet(oc, constel, iter_num=iter_num, B=batch_size);
-x, H_DD = jpic.detect(Y_DD, X_p, his_est, lis_est, kis_est, lmax, kmax, No, sym_map=True);
-# diff_x = abs(x - xDD);
+jpic = JPICNet(oc, constel, lmax, kmin, kmax, iter_num=iter_num, B=batch_size);
+jpic.setSdBsoMealCalInit2MMSE();
+x, Hdd_est = jpic.detect(Y_DD, X_p, his_est, his_var, his_est_mask, No, sym_map=True);
+

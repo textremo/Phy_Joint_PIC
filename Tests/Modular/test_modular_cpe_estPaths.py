@@ -70,11 +70,11 @@ yDD = np.reshape(Y_DD, [M*N]);
 
 # estimate the paths
 # estimate the paths - positve 
-his_est, lis_est, kis_est = cpe.estPaths(Y_DD);
+his_est, his_est_var, lis_est, kis_est = cpe.estPaths(Y_DD);
 his_full_est = realH2Hfull(kmax, lmax, his_est, lis_est, kis_est);
 his_full_diff = abs(his_full_est - his_full);
 # estimate the paths - all
-his_full_est1, his_mask =  cpe.estPaths(Y_DD, isAll=True);
+his_full_est1, his_full_est1_var, his_mask =  cpe.estPaths(Y_DD, isAll=True);
 lis_full_est1 = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);  # the delays on all possible paths
 kis_full_est1 = np.tile(np.arange(-kmax, kmax+1), lmax+1);     
 his_full_diff1 = abs(his_full_est1 - his_full_est);
@@ -181,11 +181,11 @@ yDD = np.reshape(Y_DD, [batch_size, M*N]);
 
 # estimate the paths
 # estimate the paths - positve 
-his_est, lis_est, kis_est = cpe.estPaths(Y_DD);
+his_est, his_est_var, lis_est, kis_est = cpe.estPaths(Y_DD);
 his_full_est = realH2Hfull(kmax, lmax, his_est, lis_est, kis_est, batch_size=batch_size);
 his_full_diff = abs(his_full_est - his_full);
 # estimate the paths - all
-his_full_est1, his_mask =  cpe.estPaths(Y_DD, isAll=True);
+his_full_est1, his_full_est1_var, his_mask =  cpe.estPaths(Y_DD, isAll=True);
 lis_full_est1 = np.tile(np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)), [batch_size, 1]).astype(int);  # the delays on all possible paths
 kis_full_est1 = np.tile(np.arange(-kmax, kmax+1), [batch_size, lmax+1]);     
 his_full_diff1 = abs(his_full_est1 - his_full_est);
@@ -294,11 +294,11 @@ yDD = np.reshape(Y_DD, [batch_size, M*N]);
 
 # estimate the paths
 # estimate the paths - positve 
-his_est, lis_est, kis_est = cpe.estPaths(Y_DD);
+his_est, his_est_var, lis_est, kis_est = cpe.estPaths(Y_DD);
 his_full_est = realH2Hfull(kmax, lmax, his_est, lis_est, kis_est, batch_size=batch_size);
 his_full_diff = abs(his_full_est - his_full);
 # estimate the paths - all
-his_full_est1, his_mask =  cpe.estPaths(Y_DD, isAll=True);
+his_full_est1, his_full_est1_var, his_mask =  cpe.estPaths(Y_DD, isAll=True);
 lis_full_est1 = np.tile(np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)), [batch_size, 1]).astype(int);  # the delays on all possible paths
 kis_full_est1 = np.tile(np.arange(-kmax, kmax+1), [batch_size, lmax+1]);     
 his_full_diff1 = abs(his_full_est1 - his_full_est);

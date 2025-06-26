@@ -1,11 +1,9 @@
-import numpy as np
-from numpy import exp
-from numpy.linalg import inv
-from numpy.linalg import norm as vecnorm
 import torch
 import torch.nn as nn
+
 from whatshow_toolbox import *;
-eps = np.finfo(float).eps;
+
+eps = torch.finfo().eps 
 
 class JPICNet(nn.Module):
     # constants
@@ -33,12 +31,6 @@ class JPICNet(nn.Module):
     SD_DSC_ISE_MMSE    = 1;
     SD_DSC_ISE_MRC     = 2;
     SD_DSC_ISE_LS      = 3;
-    # SD - DSC - mean previous source
-    SD_DSC_MEAN_PREV_SOUR_BSE = 1;
-    SD_DSC_MEAN_PREV_SOUR_DSC = 2;
-    # SD - DSC - variance previous source
-    SD_DSC_VAR_PREV_SOUR_BSE = 1;
-    SD_DSC_VAR_PREV_SOUR_DSC = 2;
     # SD - OUT
     SD_OUT_BSE = 1;
     SD_OUT_DSC = 2;
@@ -57,11 +49,9 @@ class JPICNet(nn.Module):
     # SD
     sd_bso_mean_cal_init    = SD_BSO_MEAN_CAL_INIT_MMSE;
     sd_bso_mean_cal         = SD_BSO_MEAN_CAL_MRC;
-    sd_bso_var              = SD_BSO_VAR_TYPE_ACCUR;
+    sd_bso_var              = SD_BSO_VAR_TYPE_APPRO;
     sd_bso_var_cal          = SD_BSO_VAR_CAL_MRC;
     sd_dsc_ise              = SD_DSC_ISE_MRC;
-    sd_dsc_mean_prev_sour   = SD_DSC_MEAN_PREV_SOUR_BSE;
-    sd_dsc_var_prev_sour    = SD_DSC_VAR_PREV_SOUR_BSE;
     sd_out                  = SD_OUT_DSC;
     # other settings
     min_var                 = eps;      # the default minimal variance is 2.2204e-16
@@ -80,20 +70,25 @@ class JPICNet(nn.Module):
     '''
     constructor
     @oc:                OTFS configuration
-    @constel:           the constellation, a vector.
+    @constel:           the constellation, a vector
+    @lmax:              the maximal delay index
+    @kmin:              the minimal Doppler index
+    @kmax:              the maximal Doppler index
     @device:            the device to run the model
     @min_var:           the minimal variance.
-    @iter_num:          the maximal iteration.
+    @iter_num:          the maximal iteration
     @B(opt):            batch size
     '''
-    def __init__(self, oc, constel, *, min_var=None, iter_num=None, B=None, device=None):
-        constel = np.asarray(constel).squeeze();
+    def __init__(self, oc, constel, lmax, kmin, kmax, *,
+                 min_var=None, iter_num=None, B=None, device=None):
+        super().__init__()
+        constel = torch.as_tensor(constel).squeeze();
         if constel.ndim != 1:
             raise Exception("The constellation must be a vector.");
         else:
             self.constel = constel;
             self.constel_len = len(constel);
-            self.es = np.sum(abs(constel)**2)/self.constel_len;
+            self.es = torch.sum(abs(constel)**2)/self.constel_len;
         self.oc = oc;
         
         # optionl inputs
@@ -102,9 +97,47 @@ class JPICNet(nn.Module):
         if B is not None:           self.B          = B
         if device is not None:      self.device     = device
         
+        # other settings
+        self.ftype = torch.get_default_dtype()
+        if self.ftype == torch.float16:
+            self.itype = torch.int16
+            self.ctype = torch.complex32
+        elif self.ftype == torch.float32:
+            self.itype = torch.int32
+            self.ctype = torch.complex64
+        elif self.ftype == torch.float64:
+            self.itype = torch.int64
+            self.ctype = torch.complex128
+        
         # nn.parameters
+        
         # buffer
-    
+        # constellation
+        self.register_buffer("constel_B_row", self.constel.repeat(self.B, 1, 1))
+        # delay & Doppler
+        self.pmax = (lmax+1)*(2*kmax+1) 
+        self.register_buffer("lis", torch.kron(torch.arange(lmax+1), torch.ones(kmax - kmin + 1, dtype=int)))
+        self.register_buffer("kis", torch.arange(kmin, kmax+1).repeat(lmax+1))
+        # Hdd0
+        self.register_buffer("Hdd0", torch.zeros(self.B, self.oc.sig_len, self.oc.sig_len, dtype=self.ctype))
+        self.register_buffer("Hddv0", torch.zeros(self.B, self.oc.sig_len, self.oc.sig_len))
+        # off-diagonal
+        self.register_buffer("off_diag", ((torch.eye(self.oc.sig_len)+1) - torch.eye(self.oc.sig_len)*2).repeat(self.B, 1, 1))
+        if self.oc.isPulRecta():
+            # DFT matrix  
+            self.register_buffer("dftmat", torch.fft.fft(torch.eye(self.oc.N).repeat(self.B, 1, 1))/torch.sqrt(torch.as_tensor(self.oc.N)))
+            # IDFT matrix         
+            self.register_buffer("idftmat", torch.conj(self.dftmat))       
+            # permutation matrix (from the delay) -> pi        
+            self.register_buffer("piMat", torch.eye(self.oc.sig_len, dtype=self.ctype).repeat(self.B, 1, 1))            
+            self.register_buffer("piEye", torch.eye(self.oc.M).repeat(self.B, 1, 1))
+        # Symbol Detection
+        self.register_buffer("x_bse0", torch.zeros(self.B, self.oc.sig_len, 1, dtype=self.ctype))
+        self.register_buffer("v_bse0", torch.zeros(self.B, self.oc.sig_len, 1))
+        # channel estimation
+        self.register_buffer("Phi0", torch.zeros(self.B, self.oc.N, self.oc.M, dtype=self.ctype))
+        
+        
     '''
     settings - CE
     '''
@@ -129,89 +162,80 @@ class JPICNet(nn.Module):
     def setSdBsoMeanCal2LS(self):
         self.sd_bso_mean_cal = self.SD_BSO_MEAN_CAL_LS;
     # settings - SD - BSO - var
-    def setSdBsoVar2Appro(self):
-        self.sd_bso_var = self.SD_BSO_VAR_TYPE_APPRO;
-    def setSdBsoVar2Accur(self):
-        self.sd_bso_var = self.SD_BSO_VAR_TYPE_ACCUR;
+    # def setSdBsoVar2Appro(self):
+    #     self.sd_bso_var = self.SD_BSO_VAR_TYPE_APPRO;
+    # def setSdBsoVar2Accur(self):
+    #     self.sd_bso_var = self.SD_BSO_VAR_TYPE_ACCUR;
     # settings - SD - BSO - var - cal
-    def setSdBsoVarCal2MMSE(self):
-        self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_MMSE;
-    def setSdBsoVarCal2MRC(self):
-        self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_MRC;
-    def setSdBsoVarCal2LS(self):
-        self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_LS;
+    # def setSdBsoVarCal2MMSE(self):
+    #     self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_MMSE;
+    # def setSdBsoVarCal2MRC(self):
+    #     self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_MRC;
+    # def setSdBsoVarCal2LS(self):
+    #     self.sd_bso_var_cal = self.SD_BSO_VAR_CAL_LS;
     # settings - SD - DSC - instantaneous square error
-    def setSdDscIse2MMSE(self):
-        self.sd_dsc_ise = self.SD_DSC_ISE_MMSE;
-    def setSdDscIse2MRC(self):
-        self.sd_dsc_ise = self.SD_DSC_ISE_MRC;
-    def setSdDscIse2LS(self):
-        self.sd_dsc_ise = self.SD_DSC_ISE_LS;
-    # settings - SD - DSC - mean previous source
-    def setSdDscMeanPrevSour2BSE(self):
-        self.sd_dsc_mean_prev_sour = self.SD_DSC_MEAN_PREV_SOUR_BSE;
-    def setSdDscMeanPrevSour2DSC(self):
-        self.sd_dsc_mean_prev_sour = self.SD_DSC_MEAN_PREV_SOUR_DSC;
-    # settings - SD - DSC - variance previous source
-    def setSdDscVarPrevSour2BSE(self):
-        self.sd_dsc_var_prev_sour = self.SD_DSC_VAR_PREV_SOUR_BSE;
-    def setSdDscVarPrevSour2DSC(self):
-        self.sd_dsc_var_prev_sour = self.SD_DSC_VAR_PREV_SOUR_DSC;
+    # def setSdDscIse2MMSE(self):
+    #     self.sd_dsc_ise = self.SD_DSC_ISE_MMSE;
+    # def setSdDscIse2MRC(self):
+    #     self.sd_dsc_ise = self.SD_DSC_ISE_MRC;
+    # def setSdDscIse2LS(self):
+    #     self.sd_dsc_ise = self.SD_DSC_ISE_LS;
     
     '''
     symbol detection
-    @Y:             the received signal in the delay Doppler domain [B, 2, doppler, delay]
-    @Xp:            the pilot in the delay Doppler domain [B, 2, doppler, delay]
-    @his:           initial channel estimation - path gains [B, 2, Pmax]
-    @his_mask:      initial channel estimation - mask [B, 2, Pmax]
-    @lmax:          the maximal delay index
-    @kmax:          the maximal Doppler index
+    @Y:             the received signal in the delay Doppler domain [B, doppler, delay]
+    @Xp:            the pilot in the delay Doppler domain [B, doppler, delay]
+    @h:             initial channel estimation - path gains [B, Pmax]
+    @hv:            initial channel estimation - variance [B, Pmax]
+    @hm:            initial channel estimation - mask [B, Pmax]
     @No:            the noise (linear) power or a vector of noise [B] (variant noise power)
-    @XdLocs(opt):   [B, 2, doppler, delay]
+    @XdLocs(opt):   [B, doppler, delay]
     @sym_map(opt):  false by default. If true, the output will be mapped to the constellation
     '''
-    def detect(self, Y, Xp, his, lis, kis, lmax, kmax, No, *, XdLocs=None, sym_map=False):
+    def detect(self, Y, Xp, h, hv, hm, No, *, XdLocs=None, sym_map=False):
         if self.B is self.B0:
             raise Exception("The neural network requires batched data. Please set a batch size first.");
         # inputs
-        Y = torch.as_tensor(Y).to(self.device)
-        Xp = torch.as_tensor(Xp).to(self.device)
+        Y = torch.as_tensor(Y).to(self.ctype).to(self.device)
+        Xp = torch.as_tensor(Xp).to(self.ctype).to(self.device)
         # CSI
-        his, his_mask = self.getHisFullList(his, lis, kis, lmax, kmax)
-        his = torch.as_tensor(his).to(self.device)
-        his_mask = torch.as_tensor(his_mask).to(self.device)
-        lis = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);
-        kis = np.tile(np.arange(-kmax, kmax+1), lmax+1);
+        h = torch.as_tensor(h).to(self.ctype).to(self.device)
+        hm = torch.as_tensor(hm).to(self.device)
+        hv = torch.as_tensor(hv).to(self.device)
         # noise
-        No = torch.as_tensor(No).to(self.device)
+        No = torch.as_tensor(No).to(self.ftype).to(self.device)
+        if No.ndim == 0:
+            No = No.repeat(self.B)
+        No = No[..., None, None]
+            
         # optional inputs
-        if XdLocs is None:  XdLocs = torch.ones([self.B, 2, self.oc.N, self.oc.M], dtype=torch.bool)
+        if XdLocs is None:  XdLocs = torch.ones([self.B, self.oc.N, self.oc.M], dtype=torch.bool)
         XdLocs = torch.as_tensor(XdLocs).to(self.device)
             
         # constant values
-        y = torch.reshape(Y, [self.B, 2*self.oc.sig_len, 1])
-        xp = torch.reshape(Xp, [self.B, 2*self.oc.sig_len, 1])
-        xdlocs = torch.reshape(XdLocs, [self.B, 2*self.oc.sig_len, 1])
-        xndlocs = ~xdlocs;
+        y = torch.reshape(Y, [self.B, self.oc.sig_len, 1])
+        y_r = torch.cat([y.real, y.imag], -2)
+        xp = torch.reshape(Xp, [self.B, self.oc.sig_len, 1])
+        xp_r = torch.cat([xp.real, xp.imag], -2)
+        xdlocs = XdLocs.reshape([self.B, self.oc.sig_len, 1])
+        xdlocs_r = xdlocs.repeat(1, 2, 1)
+        Hvm = xdlocs.movedim(-1, -2).repeat(1, self.oc.sig_len, 1)  # Hv mask (only count when symbol exist)
         
+        # iterative detection - init
+        ise_dsc_prev = torch.zeros([self.B, self.oc.sig_len, 1]).to(self.device)
+        x_bse_prev = None
+        v_bse_prev = None
+        x_dsc = torch.zeros([self.B, self.oc.sig_len, 1], dtype=self.ctype).to(self.device)
         # iterative detection
-        ise_dsc_prev = None;
-        x_bso_prev = None;
-        x_dsc = torch.zeros([self.B, 2*self.oc.sig_len, 1]).to(self.device)
-        x_det = torch.zeros([self.B, 2*self.oc.sig_len, 1]).to(self.device);     # the soft symbol detection results
         for iter_id in range(self.iter_num):
-                   
-            # CE
-            Xe = self.reshape(x_det, self.N, self.M);
-            Phi = self.buildPhi(Xe + self.Xp, lmax, kmax);
-            Phit = np.conj(np.moveaxis(Phi, -1, -2));
-            h = np.squeeze(inv(Phit @ Phi) @ Phit @ y, axis=-1);
+                      
             # build the channel
-            H = self.buildHdd(h, lmax, kmax);
-            Ht = np.conj(np.moveaxis(H, -1, -2));
-            Hty = Ht @ y;
-            HtH = Ht @ H;
-            HtH_off = ((self.eye(self.sig_len)+1) - self.eye(self.sig_len)*2)*HtH;
+            H, Hv = self.HtoDD(h, hv, hm)
+            Ht = H.transpose(-1, -2).conj()
+            Hty = Ht @ y
+            HtH = Ht @ H
+            HtH_off = self.off_diag * HtH
+            sigma2_H = ((Hv * Hvm) * self.es).sum(-1, keepdim=True)     # CHE variance
             
             # Symbol Detection (SD)
             # SD - BSO
@@ -219,57 +243,102 @@ class JPICNet(nn.Module):
             if iter_id == 0:
                 # SD - BSO - mean - 1st iter
                 if self.sd_bso_mean_cal_init == self.SD_BSO_MEAN_CAL_INIT_MMSE:
-                    bso_zigma_1 = inv(HtH + No/self.es*self.eye(self.sig_len));
+                    x_bso = torch.linalg.solve(
+                        HtH + No/self.es*torch.eye(self.oc.sig_len).repeat(self.B, 1, 1), 
+                        Hty - HtH_off @ x_dsc - HtH @ xp
+                        )
                 elif self.sd_bso_mean_cal_init == self.SD_BSO_MEAN_CAL_INIT_MRC:
-                    bso_zigma_1 = self.diag(1/vecnorm(H, axis=-1)**2);
+                    x_bso = 1/torch.norm(H, dim=-2).unsqueeze(-1)**2 * (Hty - HtH_off@x_dsc - HtH@xp);
                 elif self.sd_bso_mean_cal_init == self.SD_BSO_MEAN_CAL_INIT_LS:
-                    bso_zigma_1 = inv(HtH);
-                else:
-                    bso_zigma_1 = self.eye(self.sig_len);
-                x_bso = bso_zigma_1 @ (Hty - HtH_off @ x_dsc - HtH @ xp);
+                    x_bso = torch.linalg.solve(
+                        HtH,
+                        Hty - HtH_off @ x_dsc - HtH @ xp
+                        )
             else:
                 # SD - BSO - mean - other iteration
                 if self.sd_bso_mean_cal == self.SD_BSO_MEAN_CAL_MRC:
-                    bso_zigma_n = self.diag(1/vecnorm(H, axis=-1)**2);
+                    x_bso = 1/torch.norm(H, dim=-2).unsqueeze(-1)**2 * (Hty - HtH_off@x_dsc - HtH@xp);
                 elif self.sd_bso_mean_cal == self.SD_BSO_MEAN_CAL_LS:
-                    bso_zigma_n = inv(HtH);
-                x_bso = bso_zigma_n @ (Hty - HtH_off@x_dsc - HtH@xp);
-            x_bso[xndlocs] = 0;
+                    x_bso = torch.linalg.solve(
+                        HtH,
+                        Hty - HtH_off@x_dsc - HtH@xp
+                        )
+            # SD - BSO - variance
+            if self.sd_bso_var == self.SD_BSO_VAR_TYPE_APPRO:
+                v_bso = 1/torch.norm(H, dim=-2).unsqueeze(-1)**2 * (No + sigma2_H)
+            
+            # SD - BSO - data filter
+            x_bso = x_bso * xdlocs  # zero no data part (x_bso[~xdlocs]=0 detach gradient)
+            v_bso = v_bso.clamp(self.min_var)
+            v_bso = v_bso * xdlocs
 
             # BSE
+            x_bso_d = x_bso[xdlocs].reshape(self.B, self.oc.data_len, 1)
+            v_bso_d = v_bso[xdlocs].reshape(self.B, self.oc.data_len, 1)
+            # BSE - Estimate P(x|y) using Gaussian distribution
+            pxyPdfExpPower = -1/(2*v_bso_d)*abs(x_bso_d - self.constel_B_row)**2;
+            # BSE - make every row the max power is 0
+            #     - max only consider the real part
+            pxypdfExpNormPower = pxyPdfExpPower - pxyPdfExpPower.max(-1, keepdim=True).values
+            pxyPdf = torch.exp(pxypdfExpNormPower);
+            # BSE - Calculate the coefficient of every possible x to make the sum of all
+            pxyPdfCoeff = 1/pxyPdf.sum(-1, keepdim=True)
+            # BSE - PDF normalisation
+            pxyPdfNorm = pxyPdfCoeff*pxyPdf;
+            # BSE - calculate the mean and variance
+            x_bse_d = (pxyPdfNorm*self.constel_B_row).sum(-1, keepdim=True)
+            v_bse_d = (abs(x_bse_d - self.constel_B_row)**2*pxyPdfNorm).sum(-1, keepdim=True)
+            v_bse_d = v_bse_d.clamp(self.min_var)
+            # BSE - resize
+            x_bse = self.x_bse0.masked_scatter(xdlocs, x_bse_d)
+            v_bse = self.v_bse0.masked_scatter(xdlocs, v_bse_d)
 
             # SD - DSC
-            if self.sd_dsc_ise == self.SD_DSC_ISE_MMSE:
-                dsc_w = inv(HtH + No/self.es*self.eye(self.sig_len));
-            elif self.sd_dsc_ise == self.SD_DSC_ISE_MRC:
-                dsc_w = self.diag(1/vecnorm(H, axis=-1)**2);
-            elif self.sd_dsc_ise ==  self.SD_DSC_ISE_LS:
-                dsc_w = inv(HtH);
-            ise_dsc = (dsc_w @ (Hty - HtH@(x_bso + xp)))**2;
-            ies_dsc_sum = ise_dsc + ise_dsc_prev;
-            ies_dsc_sum = self.max(ies_dsc_sum, self.min_var);
+            if self.sd_dsc_ise == self.SD_DSC_ISE_MRC:
+                dsc_w = 1/torch.norm(H, dim=-2).unsqueeze(-1)**2
+            ise_dsc = abs(dsc_w * (Hty - HtH@(x_bso + xp)))**2
+            ies_dsc_sum = (ise_dsc + ise_dsc_prev).clamp(self.min_var)
             # DSC - rho (if we use this rho, we will have a little difference)
-            rho_dsc = ise_dsc_prev/ies_dsc_sum;
+            rho_dsc = ise_dsc_prev/ies_dsc_sum
             # DSC - mean
             if iter_id == 0:
-                x_dsc = x_bso;
+                x_dsc = x_bse
+                v_dsc = v_bse
             else:
-                if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
-                    #x_dsc = ise_dsc./ies_dsc_sum.*x_bse_prev + ise_dsc_prev./ies_dsc_sum.*x_bse;
-                    x_dsc = (1 - rho_dsc)*x_bso_prev + rho_dsc*x_bso;
-                if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_DSC:
-                    x_dsc = (1 - rho_dsc)*x_dsc + rho_dsc*x_bso;
-
+                x_dsc = (1 - rho_dsc)*x_bse_prev + rho_dsc*x_bse
+                v_dsc = (1 - rho_dsc)*v_bse_prev + rho_dsc*v_bse
+                
             # update statistics
             # update statistics - BSE
-            if self.sd_dsc_mean_prev_sour == self.SD_DSC_MEAN_PREV_SOUR_BSE:
-                x_bso_prev = x_bso;
+            x_bse_prev = x_bse
+            v_bse_prev = v_bse
             # update statistics - DSC - instantaneous square error
             ise_dsc_prev = ise_dsc;
-
-            # soft symbol estimation
-            x_det[xdlocs] = self.symmapNoBat(x_dsc[xdlocs]);
-            x_det[xndlocs] = 0;
+            
+            # GNN - SD
+            x_gnn = x_dsc
+            v_gnn = v_dsc
+            
+            
+            # CE
+            X = x_gnn.reshape(self.B, self.oc.N, self.oc.M)
+            V = v_gnn.reshape(self.B, self.oc.N, self.oc.M)
+            
+            Phi, PhiV = self.XtoPhi(X + Xp, V)
+            Phi_M = Phi * hm[:, None, :]
+            PhiTPhi = (Phi.transpose(-1, -2).conj() @ Phi) * hm[:, None, :] + No * torch.eye(self.pmax).repeat(self.B, 1, 1)
+            Phi_pinv = torch.linalg.solve(PhiTPhi, Phi_M.transpose(-1, -2).conj())  
+            h = hm[:, None, :] * (Phi_pinv @ y)
+            
+            # GNN - CE
+            h_gnn = h
+            hv_gnn = None
+            
+        
+        # soft symbol estimation
+        # x_det[xdlocs] = self.symmapNoBat(x_dsc[xdlocs]);
+        # x_det[xndlocs] = 0;
+        
         # only keep data part
         x = x_det[xdlocs] if self.batch_size is self.BATCH_SIZE_NO else np.reshape(x_det[xdlocs], (self.batch_size, -1));
         return x, H;
@@ -320,42 +389,44 @@ class JPICNet(nn.Module):
             for l in range(self.M):
                 self.XpMap[k, l] = True if abs(Xp[k, l]) > 1e-5 else False;
     
-    
-                
-                 
     '''
-    build Phi - the channel estimation matrix
-    @X:     the Tx matrix in DD domain ([batch_size], doppler, delay)
-    @lmax:  the maximal delay
-    @kmax:  the maximal Doppler
+    build the channel estimation matrix
+    @X:     the symbol estimation in DD domain      (B, doppler, delay)
+    @V:     the esetimation variance in DD domain   (B, doppler, delay)
     '''
-    def buildPhi(self, X, lmax, kmax):
-        pmax = (lmax+1)*(2*kmax+1);                                         # the number of all possible paths
-        lis = np.kron(np.arange(lmax+1), np.ones(2*kmax + 1)).astype(int);  # the delays on all possible paths
-        kis = np.tile(np.arange(-kmax, kmax+1), lmax+1);                    # the dopplers on all possible paths
-        Phi = self.zeros(self.sig_len, pmax).astype(complex);               # the return matrix
-        for yk in range(self.N):
-            for yl in range(self.M):
-                Phi_ri = yk*self.M + yl;      # row id in Phi
-                for p_id in range(pmax):
+    def XtoPhi(self, X, V):
+        Phi = []
+        PhiV = []
+        for yk in range(self.oc.N):
+            for yl in range(self.oc.M):
+                #Phi_ri = yk*self.oc.M + yl;      # row id in Phi
+                Phi_r = []
+                PhiV_r = []
+                for p_id in range(self.pmax):
                     # path delay and doppler
-                    li = lis[p_id];
-                    ki = kis[p_id];
+                    li = self.lis[p_id].item()
+                    ki = self.kis[p_id].item()
                     # x(k, l)
-                    xl = yl - li;
+                    xl = yl - li
                     if yl < li:
-                        xl = xl + self.M;
-                    xk = np.mod(yk - ki, self.N);
+                        xl = xl + self.oc.M;
+                    xk = (yk - ki) % self.oc.N
                     # exponential part (pss_beta)
-                    if self.pulse_type == self.PUL_BIORT:
-                        pss_beta = np.exp(-2j*np.pi*li*ki/self.M/self.N);
-                    elif self.pulse_type == self.PUL_RECTA:
-                        pss_beta = np.exp(2j*np.pi*(yl - li)*ki/self.M/self.N); # here, you must use `yl-li` instead of `xl` or there will be an error
+                    if self.oc.isPulIdeal():
+                        pss_beta = torch.exp(-2j*torch.pi*li*ki/self.oc.M/self.oc.N)
+                    elif self.oc.isPulRecta():
+                        # here, you must use `yl-li` instead of `xl` or there will be an error
+                        pss_beta = torch.exp(torch.as_tensor(2j*torch.pi*(yl - li)*ki/self.oc.M/self.oc.N))
                         if yl < li:
-                            pss_beta = pss_beta*np.exp(-2j*np.pi*xk/self.N);
+                            pss_beta = pss_beta*torch.exp(torch.as_tensor(-2j*torch.pi*xk/self.oc.N))
                     # assign value
-                    Phi[..., Phi_ri, p_id] = X[..., xk, xl]*pss_beta;
-        return Phi;
+                    Phi_r.append(X[..., xk, xl][..., None, None]*pss_beta)
+                    PhiV_r.append(V[..., xk, xl][..., None, None])
+                Phi_r = torch.cat(Phi_r, -1)
+                PhiV_r = torch.cat(PhiV_r, -1)
+                Phi.append(Phi_r)
+                PhiV.append(PhiV_r)
+        return torch.cat(Phi, -2), torch.cat(PhiV, -2)
     
     '''
     build Phi conffidence - the channel estimation matrix
@@ -368,33 +439,25 @@ class JPICNet(nn.Module):
         pass
     
     '''
-    build Hdd
-    @his: the path gains of all paths
-    @lmax: the maximal delay
-    @kmax: the maximal Doppler 
-    @thres(opt): the threshold of a path (default 0)
+    H to DD domain [B, MN, MN]
+    @h:         channel estimation - path gains [B, Pmax]
+    @hv:        channel estimation - variance [B, Pmax]
+    @hm:        channel estimation - mask [B, Pmax]
     '''
-    def buildHdd(self, his, lmax, kmax, *, thres=0):
-        # channel parameters
-        pmax = (lmax + 1)*(2*kmax+1);
-        lis = np.kron(np.arange(0, lmax+1), np.ones(2*kmax+1)).astype(int);   
-        kis = np.tile(np.arange(-kmax, kmax+1), lmax+1);
-        # channel parameters - batch size
-        if self.batch_size is not self.BATCH_SIZE_NO:
-            lis = np.tile(lis, (self.batch_size, 1));
-            kis = np.tile(kis, (self.batch_size, 1));
-        # filter the path gain
-        his = np.asarray(his);
-        his[abs(his)<abs(thres)] = 0;
-        # build the channel in the DD 
-        Hdd = None;
-        if self.pulse_type == self.PUL_BIORT:
-            Hdd = self.buildOtfsBiortDDChannel(pmax, his, lis, kis);
-        elif self.pulse_type == self.PUL_RECTA:
-            Hdd = self.buildOtfsRectaDDChannel(pmax, his, lis, kis);
+    def HtoDD(self, h, hv, hm):
+        # bi-orthogonal pulse
+        if self.oc.isPulIdeal():
+            return self.buildOtfsBiortDDChannel(h, hm)
+        elif self.oc.isPulRecta():
+            return self.HtoDD_Recta(h, hv, hm)
+            # to real
+            #Hr = Hdd.real    # [B, m, n]
+            #Hi = Hdd.imag    # [B, m, n]
+            #top = torch.cat([Hr, -Hi], -1)      # [B, m, 2n]
+            #bottom = torch.cat([Hi, Hr], -1)    # [B, m, 2n]
+            #Hdd_r = torch.cat([top, bottom], -2)  # [B, 2m, 2n]
         else:
-            raise Exception("The pulse type is not recognised.");
-        return Hdd;
+            raise Exception("The pulse type is not recognised.");        
     ###########################################################################
     
     ###########################################################################
@@ -402,12 +465,10 @@ class JPICNet(nn.Module):
     ###########################################################################
     '''
     build the ideal pulse DD channel (callable after modulate)
-    @taps_num:  the number of paths
-    @his:       the channel gains
-    @lis:       the channel delays
-    @kis:       the channel dopplers
+    @h:     path gains [B, Pmax]
+    @hm:    mask [B, Pmax]
     '''
-    def buildOtfsBiortDDChannel(self, p, his, lis, kis):
+    def buildOtfsBiortDDChannel(self, h, hm):
         # input check
         if self.pulse_type != self.PUL_BIORT:
             raise Exception("Cannot build the ideal pulse DD channel while not using ideal pulse.");
@@ -439,61 +500,42 @@ class JPICNet(nn.Module):
     
     '''
     build the rectangular pulse DD channel (callable after modulate)
-    @taps_num:  the number of paths
-    @his:       the channel gains
-    @lis:       the channel delays
-    @kis:       the channel dopplers
+    @h:     path gains [B, Pmax]
+    @hm:    mask [B, Pmax]
     '''
-    def buildOtfsRectaDDChannel(self, p, his, lis, kis):
-        # input check
-        if self.pulse_type != self.PUL_RECTA:
-            raise Exception("Cannot build the rectangular pulse DD channel while not using rectanular pulse.");
-        # build H_DD
-        H_DD = self.zeros(self.sig_len, self.sig_len);      # intialize the return channel
-        dftmat = self.dftmtx(self.N);            # DFT matrix
-        idftmat = np.conj(dftmat);                          # IDFT matrix
-        piMat = self.eye(self.sig_len);                     # permutation matrix (from the delay) -> pi
+    def HtoDD_Recta(self, h, hv, hm):
+        # init 
+        Hdd = self.Hdd0
+        Hddv = self.Hddv0
         # accumulate all paths
-        for tap_id in range(p):
-            if self.batch_size == self.BATCH_SIZE_NO:
-                hi = his[tap_id];
-                li = lis[tap_id];
-                ki = kis[tap_id];
-            else:
-                hi = his[..., tap_id];
-                li = lis[..., tap_id];
-                ki = np.expand_dims(kis[..., tap_id], axis=-1);
-            # delay
-            piMati = self.circshift(piMat, li);
-            # Doppler            
-            deltaMat_diag = np.exp(2j*np.pi*ki/(self.sig_len)*self.buildTimeSequence(li));
-            deltaMati = self.diag(deltaMat_diag);
-            # Pi, Qi & Ti
-            Pi = self.kron(dftmat, self.eye(self.M)) @ piMati;
-            Qi = deltaMati @ self.kron(idftmat, self.eye(self.M));
-            Ti = Pi @ Qi;
-            # add this path
-            if self.batch_size == self.BATCH_SIZE_NO:
-                H_DD = H_DD + hi*Ti;
-            else:
-                H_DD = H_DD + hi.reshape(-1, 1, 1)*Ti;
-        return H_DD;
+        for tap_id in range(self.pmax):
+            hmi = hm[..., tap_id]
+            # only accumulate when there are at least a path
+            if torch.any(hmi):
+                hi = h[..., tap_id]
+                hvi = hv[..., tap_id]
+                li = self.lis[tap_id].item()
+                ki = self.kis[tap_id].item() #np.expand_dims(kis[..., tap_id], axis=-1);
+                
+                li = 4
+                ki = -3
+                
+                # delay
+                piMati = torch.roll(self.piMat, li, 1)
+                # Doppler            
+                timeSeq = torch.arange(-li, self.oc.sig_len-li).roll(li).repeat(self.B, 1).to(self.device)
+                
+                deltaMat_diag = torch.exp( 2j*torch.pi*ki/(self.oc.sig_len)*timeSeq )
+                deltaMati = torch.diag_embed(deltaMat_diag)
+                # Pi, Qi & Ti
+                Pi = torch.einsum('...ij,...kl->...ikjl', self.dftmat, self.piEye).reshape(self.B, self.oc.sig_len, self.oc.sig_len) @ piMati
+                Qi = deltaMati @ torch.einsum('...ij,...kl->...ikjl', self.idftmat, self.piEye).reshape(self.B, self.oc.sig_len, self.oc.sig_len)
+                Ti = Pi @ Qi
+                # add this path
+                Hdd = Hdd + hi.reshape(-1, 1, 1) * Ti
+                Hddv = Hddv + hvi.reshape(-1, 1, 1) * abs(Ti)
+        return Hdd, Hddv
     
-    '''
-    build the time sequence for the given delay
-    '''
-    def buildTimeSequence(self, li):
-        if self.batch_size is self.BATCH_SIZE_NO:
-            ts = np.append(np.arange(0, self.sig_len-li), np.arange(-li, 0));
-        else:
-            if np.all(li == li[0]):
-                ts = np.append(np.arange(0, self.sig_len-li[0]), np.arange(-li[0], 0));
-                ts = np.tile(ts, (self.batch_size, 1));
-            else:
-                ts = np.zeros((self.batch_size, self.sig_len), dtype=float);
-                for batch_id in range(self.batch_size):
-                    ts[batch_id, :] = np.append(np.arange(0, self.sig_len-li[batch_id]), np.arange(-li[batch_id], 0));
-        return ts;
     
     '''
     symbol mapping (hard)
