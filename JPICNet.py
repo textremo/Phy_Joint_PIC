@@ -125,17 +125,17 @@ class JPICNet(nn.Module):
         self.register_buffer("off_diag", ((torch.eye(self.oc.sig_len)+1) - torch.eye(self.oc.sig_len)*2).repeat(self.B, 1, 1))
         if self.oc.isPulRecta():
             # DFT matrix  
-            self.register_buffer("dftmat", torch.fft.fft(torch.eye(self.oc.N).repeat(self.B, 1, 1))/torch.sqrt(torch.as_tensor(self.oc.N)))
+            self.register_buffer("dftmat", torch.fft.fft(torch.eye(self.oc.K).repeat(self.B, 1, 1))/torch.sqrt(torch.as_tensor(self.oc.K)))
             # IDFT matrix         
             self.register_buffer("idftmat", torch.conj(self.dftmat))       
             # permutation matrix (from the delay) -> pi        
             self.register_buffer("piMat", torch.eye(self.oc.sig_len, dtype=self.ctype).repeat(self.B, 1, 1))            
-            self.register_buffer("piEye", torch.eye(self.oc.M).repeat(self.B, 1, 1))
+            self.register_buffer("piEye", torch.eye(self.oc.L).repeat(self.B, 1, 1))
         # Symbol Detection
         self.register_buffer("x_bse0", torch.zeros(self.B, self.oc.sig_len, 1, dtype=self.ctype))
         self.register_buffer("v_bse0", torch.zeros(self.B, self.oc.sig_len, 1))
         # channel estimation
-        self.register_buffer("Phi0", torch.zeros(self.B, self.oc.N, self.oc.M, dtype=self.ctype))
+        self.register_buffer("Phi0", torch.zeros(self.B, self.oc.K, self.oc.L, dtype=self.ctype))
         
         
     '''
@@ -209,7 +209,7 @@ class JPICNet(nn.Module):
         No = No[..., None, None]
             
         # optional inputs
-        if XdLocs is None:  XdLocs = torch.ones([self.B, self.oc.N, self.oc.M], dtype=torch.bool)
+        if XdLocs is None:  XdLocs = torch.ones([self.B, self.oc.K, self.oc.L], dtype=torch.bool)
         XdLocs = torch.as_tensor(XdLocs).to(self.device)
             
         # constant values
@@ -321,8 +321,8 @@ class JPICNet(nn.Module):
             
             
             # CE
-            X = x_gnn.reshape(self.B, self.oc.N, self.oc.M)
-            V = v_gnn.reshape(self.B, self.oc.N, self.oc.M)
+            X = x_gnn.reshape(self.B, self.oc.K, self.oc.L)
+            V = v_gnn.reshape(self.B, self.oc.K, self.oc.L)
             
             Phi, PhiV = self.XtoPhi(X + Xp, V)
             Phi_M = Phi * hm[:, None, :]
@@ -397,9 +397,9 @@ class JPICNet(nn.Module):
     def XtoPhi(self, X, V):
         Phi = []
         PhiV = []
-        for yk in range(self.oc.N):
-            for yl in range(self.oc.M):
-                #Phi_ri = yk*self.oc.M + yl;      # row id in Phi
+        for yk in range(self.oc.K):
+            for yl in range(self.oc.L):
+                #Phi_ri = yk*self.oc.L + yl;      # row id in Phi
                 Phi_r = []
                 PhiV_r = []
                 for p_id in range(self.pmax):
@@ -409,16 +409,16 @@ class JPICNet(nn.Module):
                     # x(k, l)
                     xl = yl - li
                     if yl < li:
-                        xl = xl + self.oc.M;
-                    xk = (yk - ki) % self.oc.N
+                        xl = xl + self.oc.L;
+                    xk = (yk - ki) % self.oc.K
                     # exponential part (pss_beta)
                     if self.oc.isPulIdeal():
-                        pss_beta = torch.exp(-2j*torch.pi*li*ki/self.oc.M/self.oc.N)
+                        pss_beta = torch.exp(-2j*torch.pi*li*ki/self.oc.L/self.oc.K)
                     elif self.oc.isPulRecta():
                         # here, you must use `yl-li` instead of `xl` or there will be an error
-                        pss_beta = torch.exp(torch.as_tensor(2j*torch.pi*(yl - li)*ki/self.oc.M/self.oc.N))
+                        pss_beta = torch.exp(torch.as_tensor(2j*torch.pi*(yl - li)*ki/self.oc.L/self.oc.K))
                         if yl < li:
-                            pss_beta = pss_beta*torch.exp(torch.as_tensor(-2j*torch.pi*xk/self.oc.N))
+                            pss_beta = pss_beta*torch.exp(torch.as_tensor(-2j*torch.pi*xk/self.oc.K))
                     # assign value
                     Phi_r.append(X[..., xk, xl][..., None, None]*pss_beta)
                     PhiV_r.append(V[..., xk, xl][..., None, None])

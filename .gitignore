@@ -94,6 +94,7 @@ __[Dd][Aa][Tt][Aa]__/
 ## Intermediate documents:
 *.dvi
 *.xdv
+*.loc
 *-converted-to.*
 # these rules might exclude image files for figures etc.
 # *.ps

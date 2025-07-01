@@ -36,7 +36,7 @@ iter_num = 10;
 # init generalised variables
 # config
 oc = OTFSConfig();
-oc.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, M, N);
+oc.setFrame(OTFSConfig.FRAME_TYPE_GIVEN, N, M);
 oc.setPul(OTFSConfig.PUL_TYPE_RECTA);
 # OTFS module
 otfs = OTFS(batch_size=batch_size);
