@@ -47,6 +47,7 @@
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
 %% 自定义包
+\usepackage{svg} 								% 支持SVG图片
 \usepackage{bm}									%
 \usepackage{enumitem}							% item支持更多格式
 \usepackage[numbers,sort&compress]{natbib}		% 文献引用连号时[1,2,3]变成[1-3]
@@ -106,7 +107,16 @@ $a$, $\bm{a}$ and $\bm{A}$ demote scalar, vector, and matrix respectively. $\mat
 % T, L, \Delta f, K
 % \sigma_d^2
 % Xp, x_p, k_p, {l_p}_0, ..., {l_p}_last \sigma_d^2
-We consider an OTFS system that transmits symbols $\bm{X_{DD}}\in \mathbb{C}^{K\times L}$ over the delay-Doppler (DD) domain grids $\{(k\Delta\tau, l\Delta v)|k=0,...,K-1, l=0,...,L-1\}$, where $\Delta\tau$ and $\Delta v$ denote the delay and Doppler resolutions, where:
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{otfs_frame}
+    \caption{OTFS frame structure}
+    \label{fig:otfs_frame}
+\end{figure}
+
+
+We consider an OTFS system that transmits symbols $\bm{X_{D}}\in \mathbb{C}^{K\times L}$ over the delay-Doppler (DD) domain grids $\{(k\Delta\tau, l\Delta v)|k=0,...,K-1, l=0,...,L-1\}$, where $\Delta\tau$ and $\Delta v$ denote the delay and Doppler resolutions, where:
 \begin{itemize}[label={--}] % 用横线代替默认的圆点
     \item $\Delta\tau=T/L$ is the delay resolution, with $T$ being the symbol duration of the OTFS system,
     \item $\Delta v=\Delta f/$ is the Doppler resolution, with $\Delta f=1/T$ denoting the subcarrier spacing.
@@ -122,12 +132,12 @@ where $\delta(\cdot)$ denotes the Dirac delta function, $h_i \sim \mathcal{N}(0,
 \end{equation}
 respectively. Let the integers $l_i \in [0, l_{max}]$ and $k_i \in [-k_{max}, k_{max}]$ represent the delay and Doppler shift indices, respectively, where $l_{max}$ and $k_{max}$ denote the maximum delay index and maximum Doppler shift index across all propagation paths. Note that we restrict our consideration to integer-valued indices, as fractional delay and Doppler shifts can be equivalently represented through virtual integer taps in the delay-Doppler domain using the techniques described in \cite{6563167, 8377159, 8516353}.
 
-At the receiver, the time-domain signal is first converted to the time-frequency (TF) domain through matched filtering and OFDM demodulation, then transformed to the delay-Doppler (DD) domain via inverse symplectic finite Fourier transform (ISFFT), yielding the received symbols $\bm{Y}_{\text{DD}}\in \mathbb{C}^{K\times L}$. The DD domain input-output relationship can be formulated in vector form as \cite{10264119},
+At the receiver, the time-domain signal is first converted to the time-frequency (TF) domain through matched filtering and OFDM demodulation, then transformed to the delay-Doppler (DD) domain via inverse symplectic finite Fourier transform (ISFFT), yielding the received symbols $\bm{Y}_D\in \mathbb{C}^{K\times L}$. The DD domain input-output relationship can be formulated in vector form as \cite{10264119},
 \begin{equation}
 \bm{y} = \bm{Hx} + \bm{\tilde{z}},
 \label{eq:sys-DD}
 \end{equation}
-where $\bm{x} = vec(\bm{X_{DD}}^T)$, $\bm{y} = vec(\bm{Y_{DD}}^T)$, and $\tilde{z} \sim \mathcal{CN}(0, \sigma_z^2)$ is an independent and identically distributed (i.i.d.) Gaussian noise \cite{8516353, 10264119, 7925924}.
+where $\bm{x} = vec(\bm X_D^T)$, $\bm y = vec(\bm Y_D^T)$, and $\tilde{z} \sim \mathcal{CN}(0, \sigma_z^2)$ is an independent and identically distributed (i.i.d.) Gaussian noise \cite{8516353, 10264119, 7925924}.
 
 %% todo
 % 解释 H 在两种Pulse的值
@@ -267,6 +277,9 @@ where $(kL+l, i)$th entry of $\Phi \in \mathcal{C}^{(KL-1)\times P_{max}}$ is \c
 \begin{dmath}
 \Phi_{k_{mi}, l_{mi}}(kL+l, i) = X([k-k_{mi}]_K, [l-l_{mi}]_L)\beta[k, l, k_{mi}, l_{mi}].
 \end{dmath}
+However, we use the estimation of $\Phi$
+
+
 
 Inspired by \cite{945004, 5493831}, we implement a linear minimum-mean-squared
 error (MMSE) channel estimation , i.e.,

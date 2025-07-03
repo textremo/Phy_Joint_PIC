@@ -5,24 +5,20 @@ eps = np.finfo(np.float64).eps
 
 class CPE(object):
     # constants
-    EST_LS      = 0
-    EST_MMSE    = 1
-    
-    PIL_VAL = (1+1j)/np.sqrt(2);
+    EST_TYPE_LS      = 0
+    EST_TYPE_MMSE    = 1
+    EST_TYPES       = [EST_TYPE_LS, EST_TYPE_MMSE]
+    PIL_VAL = (1+1j)*np.sqrt(0.5)
     BATCH_SIZE_NO = None;
     
-    
     # variables
-    otfsconfig = None;
-    M = 0; # subcarrier number
-    N = 0; # timeslot number
+    oc = None;
     lmax = 0
     kmin = 0
     kmax = 0
     area_num = 0;
-    pl = 0;
-    pk = 0;
-    pls = [];
+    pk = 0
+    pls = None
     Es_p = 0
     Es_d = 0
     No = 0
@@ -34,30 +30,25 @@ class CPE(object):
     thres = 0;      # the threshold that this point is not noise (in power)
     
     '''
-    @otfsconfig: OTFS configuration
+    @oc: OTFS configuration
     @lmax: the maximal delay index
     @kmax: the maximal Doppler index
     @No: the noise power
     '''
-    def __init__(self, otfsconfig, lmax, kmax, Es_d, No, *, B=None):
-        self.otfsconfig = otfsconfig;
-        self.M = otfsconfig.M;
-        self.N = otfsconfig.N;
+    def __init__(self, oc, lmax, kmax, Es_d, No, *, B=None):
+        self.oc = oc;
         self.lmax = lmax
         self.area_len = lmax + 1;
-        self.area_num = np.floor(otfsconfig.M / self.area_len).astype(int);
+        self.area_num = np.floor(oc.L / self.area_len).astype(int);
         if self.area_num <= 0:
             raise Exception("There is no space for pilots.");
         # calculate the Doppler positions
-        self.pk = np.floor((self.N - 1)/2).astype(int);
+        self.pk = np.floor((self.oc.K - 1)/2).astype(int);
         # update the k (Doppler) range
         self.kmin = -kmax if self.pk - self.kmax > 0 else -self.pk
-        self.kmax =  kmax if self.pk + kmax < self.N else self.N - self.pk
+        self.kmax =  kmax if self.pk + kmax < self.oc.K else self.oc.K - self.pk
         # calculate the delay positions
-        pl = 0;
-        for area_id in range(self.area_num):
-            self.pls.append(pl);
-            pl = pl + lmax + 1;
+        self.pls = np.arange(self.area_num)*(lmax + 1)
         # calculate the threshold
         self.Es_d = Es_d
         self.No = No
@@ -78,20 +69,23 @@ class CPE(object):
     def genPilots(self, Es_p):
         self.Es_p = Es_p;
         self.pil_val = self.PIL_VAL*np.sqrt(Es_p);
-        Xp = np.zeros([self.N, self.M], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.N, self.M], dtype=complex)
-        for area_id in range(self.area_num):
-            Xp[..., self.pk, self.pls[area_id]] = self.pil_val;
+        Xp = np.zeros([self.oc.K, self.oc.L], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.oc.K, self.oc.L], dtype=complex)
+        Xp[..., self.pk, self.pls] = self.pil_val
         return Xp;
     
     '''
     estimate the path (h, k, l)
-    @Y_DD: the received resrouce grid (N, M)
-    @isAll(opt):    estimate all paths
-    @etype:         the estimation type
+    @Y_DD:              the received resrouce grid (N, M)
+    @is_all(opt):       estimate paths on all locations
+    @est_type(opt):     the estimation type
     '''    
-    def estPaths(self, Y_DD, *, isAll=False, etype=EST_LS):
+    def estPaths(self, Y_DD, *, is_all=False, est_type=EST_TYPE_LS):
+        # input check
+        if est_type not in self.EST_TYPES:
+            raise Exception("CHE type is not supported.");
+        
         # we sum all area together
-        est_area = np.zeros([self.N, self.area_len], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.N, self.area_len], dtype=complex);
+        est_area = np.zeros([self.oc.K, self.area_len], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.oc.K, self.area_len], dtype=complex);
         ca_id_beg = 0;
         ca_id_end = self.area_len;
         # accumulate all areas together
@@ -117,18 +111,16 @@ class CPE(object):
                 pss_ys_ids_not = abs(pss_ys)**2 <= self.thres;
                 li = l_id - self.pls[0];
                 ki = k_id - self.pk;
-                
-                if etype == self.EST_LS:
+                # estimate the channel
+                if est_type == self.EST_TYPE_LS:
                     hi = pss_ys/self.pil_val;
                     hi_var = np.tile(self.Es_d/self.Es_p + self.No/self.Es_p, pss_ys.shape)
-                else:
-                    raise Exception("The estimation method is not supported.")
                 # zero values under the threshold
                 hi[pss_ys_ids_not] = 0
                 hi_var[pss_ys_ids_not] = eps
                 hi_mask = pss_ys_ids_yes;
                 # at least we find one path
-                if isAll or np.sum(pss_ys_ids_yes, axis=None) > 0:
+                if is_all or np.sum(pss_ys_ids_yes, axis=None) > 0:
                     if self.batch_size != self.BATCH_SIZE_NO:
                         hi = hi[..., np.newaxis]
                         hi_var = hi_var[..., np.newaxis]
@@ -144,7 +136,7 @@ class CPE(object):
         his_var = np.concatenate(his_var, -1)
                     
         # return
-        if isAll:
+        if is_all:
             his_mask = np.concatenate(his_mask, -1)
             return his, his_var, his_mask
         else:
@@ -152,7 +144,8 @@ class CPE(object):
             kis = np.asarray(kis) if self.batch_size == self.BATCH_SIZE_NO else np.concatenate(kis, -1)
             return his, his_var, lis, kis;
         
-    
+    ###########################################################################
+    # private methods
     '''
     build the phase Conj matrix
     @area_id: the area index
@@ -160,24 +153,16 @@ class CPE(object):
     def getPhaseConjMat(self, area_id):
         if area_id < 0 or area_id >= self.area_num:
             raise Exception("Area Id is illegal.");
-        phaseConjMat = np.zeros((self.N, self.area_len), dtype=complex);
-        for ki in range(0, self.N):
+        phaseConjMat = np.zeros((self.oc.K, self.area_len), dtype=complex);
+        for ki in range(0, self.oc.K):
             for li in range(0, self.area_len):
-                if self.otfsconfig.isPulIdeal():
-                    phaseConjMat[ki, li] = np.exp(2j*np.pi*li*(ki-self.pk)/self.M/self.N);
-                elif self.otfsconfig.isPulRecta():
-                    phaseConjMat[ki, li] = np.exp(-2j*np.pi*self.pls[area_id]*(ki-self.pk)/self.M/self.N);
+                if self.oc.isPulIdeal():
+                    phaseConjMat[ki, li] = np.exp(2j*np.pi*li*(ki-self.pk)/self.oc.L/self.oc.K);
+                elif self.oc.isPulRecta():
+                    phaseConjMat[ki, li] = np.exp(-2j*np.pi*self.pls[area_id]*(ki-self.pk)/self.oc.L/self.oc.K);
                 else:
                     raise Exception("The pulse type is unkownn.");
         if self.batch_size is not self.BATCH_SIZE_NO:
             phaseConjMat = np.tile(phaseConjMat, (self.batch_size, 1, 1));
         
         return phaseConjMat;
-        
-            
-    
-    '''
-    check whether the channel path number are equal
-    '''
-    def chkChPathNum(self, his):
-        pass
