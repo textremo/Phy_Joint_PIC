@@ -71,6 +71,8 @@ classdef OTFSConfig < handle
             % load optional inputs 
             inPar = inputParser;
             addParameter(inPar,"zp_len", 0, @(x) isscalar(x)&&isnumeric(x));
+            inPar.KeepUnmatched = true;
+            inPar.CaseSensitive = false;
             parse(inPar, varargin{:});
             self.zp_len = inPar.Results.zp_len;
             % input check
@@ -122,6 +124,8 @@ classdef OTFSConfig < handle
             addParameter(inPar,"pl_len", 1, @(x) isscalar(x)&&isnumeric(x));
             addParameter(inPar,"pk_num", 1, @(x) isscalar(x)&&isnumeric(x));
             addParameter(inPar,"pl_num", 1, @(x) isscalar(x)&&isnumeric(x));
+            inPar.KeepUnmatched = true;
+            inPar.CaseSensitive = false;
             parse(inPar, varargin{:});
             self.pk_len = inPar.Results.pk_len;
             self.pl_len = inPar.Results.pl_len;
