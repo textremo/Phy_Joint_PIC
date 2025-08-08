@@ -1,0 +1,84 @@
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{mathtools}  % math tools
+\usepackage{caption}    % support subfigure
+\usepackage{subcaption} % support subfigure
+\usepackage{placeins}   % support FloatBarrier
+\usepackage{listings}   % support codes
+\usepackage{color}      % support color
+\usepackage{amsmath} 	% support multiple lines
+\usepackage{amsfonts,amssymb} % support holo characters
+\usepackage[10pt]{extsizes}
+%\documentstyle[nips14submit_09,times,art10]{article} % For LaTeX 2.09
+
+% define color
+\definecolor{darkred}{rgb}{0.6,0.0,0.0}
+\definecolor{darkgreen}{rgb}{0,0.50,0}
+\definecolor{lightblue}{rgb}{0.0,0.42,0.91}
+\definecolor{orange}{rgb}{0.99,0.48,0.13}
+\definecolor{grass}{rgb}{0.18,0.80,0.18}
+\definecolor{pink}{rgb}{0.97,0.15,0.45}
+% set the img folder
+\graphicspath{{img/}}
+% set math notations
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+
+
+
+
+\renewcommand{\baselinestretch}{1.5}
+
+\title{LMMSE}
+\author{}
+\date{}
+
+\usepackage{geometry}
+\geometry{a4paper,left=2cm,right=2cm,top=2cm,bottom=2cm}
+
+\begin{document}
+
+\maketitle
+\section{MRC}
+The mean and the variance of estimated channel are $\hat{H}$ and $\hat{H_v}$.
+For a system,
+\[
+y = Hx + z
+\]
+the estimated original signal is 
+\[
+\hat{x} = diag(\hat{H}^H\hat{H})^{-1}\hat{H}^Hy = D_{\hat{H}}^{-1} \hat{H}^Hy
+\]
+The error is
+\[
+\begin{split}
+e &= \hat{x} - x \\
+&= D_{\hat{H}}^{-1} \hat{H}^H (Hx + z)  - x\\
+&= D_{\hat{H}}^{-1} \hat{H}^H (\hat{H}x + Hx - \hat{H}x + z) - x \\
+&= D_{\hat{H}}^{-1} \hat{H}^H \hat{H}x + D_{\hat{H}}^{-1} \hat{H}^H(H - \hat{H})x + D_{\hat{H}}^{-1} \hat{H}^H z - x \\
+&= D_{\hat{H}}^{-1} \hat{H}^H \hat{H}x + D_{\hat{H}}^{-1} \hat{H}^H \Delta Hx + D_{\hat{H}}^{-1} \hat{H}^H z - x
+\end{split}
+\]
+The expectation of the loss is
+\[
+\begin{split}
+E(e) &= E\{\hat{x} - x\} \\
+&= E\{D_{\hat{H}}^{-1} D_{\hat{H}}x - x \} + E\{ D_{\hat{H}}^{-1} \hat{H}^H \Delta Hx\} + E\{D_{\hat{H}}^{-1} \hat{H}^H z\} \\
+&= D_{\hat{H}}^{-1} \hat{H}^H E\{ \Delta Hx\} + D_{\hat{H}}^{-1} \hat{H}^HE\{z\}
+\end{split}
+\]
+\subsection{Variance}
+Here, we set $G= D_{\hat{H}}^{-1} \hat{H}^H$ and $P=G\hat{H}-I$
+\[
+\begin{split}
+cov(\hat{x}) &= E\{(\hat{x} - E\{\hat{x}\})(\hat{x} - E\{\hat{x}\})^H\} \\
+&= E\{(\hat{x} - x)(\hat{x} - x)^H\} \\
+&= E\{ee^H\} \\
+&= E\{[(G\hat{H}-I)x + G\Delta Hx + Gz][(G\hat{H}-I)x + G\Delta Hx + Gz]^H \} \\
+&= 
+\end{split}
+\]
+
+
+\end{document}
