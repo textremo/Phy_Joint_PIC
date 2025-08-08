@@ -1,1 +1,0 @@
-https://en.wikipedia.org/wiki/Complex_normal_distribution   搜Probability density function，里面有高斯推导公式
