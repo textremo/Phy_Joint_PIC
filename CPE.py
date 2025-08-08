@@ -19,8 +19,8 @@ class CPE(object):
     area_num = 0;
     pk = 0
     pls = None
-    Es_p = 0
-    Es_d = 0
+    Ep = 0
+    Ed = 0
     No = 0
     batch_size = 0;
     # variables - pilots
@@ -35,7 +35,7 @@ class CPE(object):
     @kmax: the maximal Doppler index
     @No: the noise power
     '''
-    def __init__(self, oc, lmax, kmax, Es_d, No, *, B=None):
+    def __init__(self, oc, lmax, kmax, Ed, No, *, B=None):
         self.oc = oc;
         self.lmax = lmax
         self.area_len = lmax + 1;
@@ -50,10 +50,10 @@ class CPE(object):
         # calculate the delay positions
         self.pls = np.arange(self.area_num)*(lmax + 1)
         # calculate the threshold
-        self.Es_d = Es_d
+        self.Ed = Ed
         self.No = No
         self.rho = chi2.ppf(0.9999, 2*self.area_num)/(2*self.area_num)
-        self.thres = self.rho*(Es_d + No)
+        self.thres = self.rho*(Ed + No)
         self.batch_size = B
         
     '''
@@ -64,11 +64,11 @@ class CPE(object):
         
     '''
     generate pilots
-    @Es_p: the pilot energy
+    @Ep: the pilot energy
     '''
-    def genPilots(self, Es_p):
-        self.Es_p = Es_p;
-        self.pil_val = self.PIL_VAL*np.sqrt(Es_p);
+    def genPilots(self, Ep):
+        self.Ep = Ep;
+        self.pil_val = self.PIL_VAL*np.sqrt(Ep);
         Xp = np.zeros([self.oc.K, self.oc.L], dtype=complex) if self.batch_size is self.BATCH_SIZE_NO else np.zeros([self.batch_size, self.oc.K, self.oc.L], dtype=complex)
         Xp[..., self.pk, self.pls] = self.pil_val
         return Xp;
@@ -114,7 +114,7 @@ class CPE(object):
                 # estimate the channel
                 if est_type == self.EST_TYPE_LS:
                     hi = pss_ys/self.pil_val;
-                    hi_var = np.tile(self.Es_d/self.Es_p + self.No/self.Es_p, pss_ys.shape)
+                    hi_var = np.tile(self.Ed/self.Ep + self.No/self.Ep, pss_ys.shape)
                 # zero values under the threshold
                 hi[pss_ys_ids_not] = 0
                 hi_var[pss_ys_ids_not] = eps

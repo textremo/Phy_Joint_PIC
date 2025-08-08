@@ -16,8 +16,8 @@ classdef CPE < handle
         area_num = 0;
         pk = 0
         pls = NaN
-        Es_p = 0;
-        Es_d = 0;
+        Ep = 0;
+        Ed = 0;
         No = 0;
         % variables - pilots
         pil_val = NaN;
@@ -33,7 +33,7 @@ classdef CPE < handle
         @kmax: the maximal Doppler index
         @No: the noise power
         %}
-        function self = CPE(oc, lmax, kmax, Es_d, No)
+        function self = CPE(oc, lmax, kmax, Ed, No)
             self.oc = oc;
             self.lmax = lmax;
             self.area_len = lmax + 1;
@@ -57,10 +57,10 @@ classdef CPE < handle
             % calculate the delay positions
             self.pls = (0:self.area_num-1)*(lmax + 1);
             % calculate the threshold
-            self.Es_d = Es_d;
+            self.Ed = Ed;
             self.No = No;
             self.rho = chi2inv(0.9999, 2*self.area_num)/(2*self.area_num);
-            self.thres = self.rho*(Es_d + No);
+            self.thres = self.rho*(Ed + No);
         end
 
         %{
@@ -73,11 +73,11 @@ classdef CPE < handle
 
         %{
         generate pilots
-        @Es_p: the pilot energy
+        @Ep: the pilot energy
         %}
-        function Xp = genPilots(self, Es_p)
-            self.Es_p = Es_p;
-            self.pil_val = self.PIL_VAL*sqrt(Es_p);
+        function Xp = genPilots(self, Ep)
+            self.Ep = Ep;
+            self.pil_val = self.PIL_VAL*sqrt(Ep);
             Xp = zeros(self.oc.K, self.oc.L);
             Xp(self.pk+1, self.pls+1) = self.pil_val;       % matlab index starts from 1
         end
@@ -118,11 +118,11 @@ classdef CPE < handle
             ki_end = self.pk + self.kmax;
             % find paths
             pmax = (self.kmax - self.kmin + 1)*self.area_len;
-            his = zeros(1, pmax);
-            his_var = zeros(1, pmax);    % estimation error
-            his_mask = false(1, pmax);
-            kis = zeros(1, pmax);
-            lis = zeros(1, pmax);
+            his = zeros(pmax, 1);
+            his_var = zeros(pmax, 1);    % estimation error
+            his_mask = false(pmax, 1);
+            kis = zeros(pmax, 1);
+            lis = zeros(pmax, 1);
             pid = 0;
             for l_id = 0:self.area_len-1
                 for k_id = ki_beg:ki_end
@@ -133,7 +133,7 @@ classdef CPE < handle
                         % estimate the channel
                         if est_type == self.EST_TYPE_LS
                             hi = pss_ys/self.pil_val;
-                            hi_var = repmat(self.Es_d/self.Es_p + self.No/self.Es_p, size(pss_ys));
+                            hi_var = repmat(self.Ed/self.Ep + self.No/self.Ep, size(pss_ys));
                         end
                         % zero values under the threshold
                         if abs(pss_ys)^2 <= self.thres

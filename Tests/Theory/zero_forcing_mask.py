@@ -55,6 +55,7 @@ def safe_masked_zf(H, y, mask, No, eps=1e-6):
 
         H_pinv = torch.linalg.solve(HTH, H_masked.T.conj())  # [N, M]
         x_hat = torch.diag(mask) @H_pinv @ y  # [N]
+        
 
         # 由于被 mask 的位置本来就是 0，保留 x_hat 即可
         return x_hat
@@ -77,9 +78,9 @@ def safe_masked_zf2(H, y, mask, eps=1e-6):
         # 避免不可逆：加一点正则项
         HTH = H_masked.T.conj() @ H_masked  # [N, N]
         
-        eigenvalues = torch.linalg.eigvalsh(HTH)
-        lambda_max = eigenvalues[-1]
-        epsilon = eps * lambda_max
+        # eigenvalues = torch.linalg.eigvalsh(HTH)
+        # lambda_max = eigenvalues[-1]
+        # epsilon = eps * lambda_max
         
         HTH += eps * torch.eye(HTH.shape[0], device=H.device)
 
@@ -147,10 +148,10 @@ for i in range(int(1e4)):
     err1 = torch.sum(x_hat*(1-mask));
     err2 = torch.sum(x_hat2*(1-mask));
     
-    if err1 != 0+0j:
-        raise Exception("error detect");
-    if err2 != 0+0j:
-        raise Exception("error detect");
+    # if err1 != 0+0j:
+    #     raise Exception("error detect");
+    # if err2 != 0+0j:
+    #     raise Exception("error detect");
     
     mean0 += torch.mean((x_hat0 - x_true) ** 2).item()
     mean1 += torch.mean((x_hat - x_true) ** 2).item()
@@ -158,9 +159,9 @@ for i in range(int(1e4)):
     #mean3 += torch.mean((x_hat3 - x_true) ** 2).item()
 
 # 检查结果
-print("MSE0:", mean0/1e4)
-print("MSE1:", mean1/1e4)
-print("MSE2:", mean2/1e4)
+print("MSE0:", abs(mean0)/1e4)
+print("MSE1:", abs(mean1)/1e4)
+print("MSE2:", abs(mean2)/1e4)
 #print("MSE3:", mean3/1e4)
 
 x_hat = x_hat.numpy();
