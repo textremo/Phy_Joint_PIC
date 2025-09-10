@@ -63,4 +63,11 @@ yDD = reshape(Y_DD.', K*L, 1);
 % joint detection
 jpic = JPIC(oc, constel, 1/p, lmax, kmin, kmax, "iter_num", iter_num);
 jpic.setSdBsoMealCalInit2MMSE();
-[x, Hdd_est] = jpic.detect(Y_DD, X_p, his_est, his_var, his_est_mask, No, "sym_map", true);
+[x_est, Hdd_est] = jpic.detect(Y_DD, X_p, his_est, his_var, his_est_mask, No, "sym_map", true);
+
+% compare
+ser = sum(xDD ~= x_est)/(K*L);
+ncme = sum(abs(Hdd_est - Hdd), "all")/(K*L)^2;
+fprintf("SNR %d (Pilot SNR %d)\n", SNR_d, SNR_p);
+fprintf("  - SER: %.8f\n", ser);
+fprintf("  - NCME: %.8f\n", ncme);
