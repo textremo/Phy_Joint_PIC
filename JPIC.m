@@ -307,10 +307,10 @@ classdef JPIC < dynamicprops
                     dsc_w = 1./sum(abs(Phi).^2).';
                     ise_dsc2 = abs(dsc_w.*(Phi'*y - Phi'*Phi*h)).^2;
                 end
-                ies_dsc_sum2 = max(ise_dsc2 + dsc_ise_prev2, self.min_var);
-                rho_dsc2 = dsc_ise_prev2./ies_dsc_sum2;
-                h_dsc = (1 - rho_dsc).*h_prev + rho_dsc.*x_bse;
-                hv_dsc = (1 - rho_dsc).*hv_prev + rho_dsc.*x_bse;
+                % ies_dsc_sum2 = max(ise_dsc2 + dsc_ise_prev2, self.min_var);
+                % rho_dsc2 = dsc_ise_prev2./ies_dsc_sum2;
+                % h_dsc = (1 - rho_dsc).*h_prev + rho_dsc.*x_bse;
+                % hv_dsc = (1 - rho_dsc).*hv_prev + rho_dsc.*x_bse;
 
             end
             % only keep data part
