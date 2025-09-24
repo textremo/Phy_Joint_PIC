@@ -175,35 +175,43 @@ classdef JPIC < dynamicprops
         @No:            the noise (linear) power
         @XdLocs(opt):   [B, doppler, delay]
         @sym_map(opt):  false by default. If true, the output will be mapped to the constellation
+        <DEBUG>
+        @his:           the real path gain for each path
+        @x:             the real symbols for each path
         %}
         function [x, H] = detect(self, Y, Xp, h, hv, hm, No, varargin)
             % register optional inputs 
             inPar = inputParser;
             addParameter(inPar,"XdLocs",  true(self.oc.K, self.oc.L));
             addParameter(inPar,"sym_map", false, @(x) isscalar(x)&islogical(x));
+            addParameter(inPar,"his",     NaN,   @(x) isscalar(x)&islogical(x));
+            addParameter(inPar,"x",       NaN,   @(x) isscalar(x)&islogical(x));
             inPar.KeepUnmatched = true;
             inPar.CaseSensitive = false;
             parse(inPar, varargin{:});
             XdLocs  = inPar.Results.XdLocs;
             sym_map = inPar.Results.sym_map;
-
+            
             % constant values
             y = reshape(Y.', [], 1);
             xp = reshape(Xp.', [], 1);
             xdlocs = reshape(XdLocs.', [], 1);
             Hvm = repmat(xdlocs.', self.oc.sig_len, 1);
             PhiVm = repmat(hm(:).', self.oc.sig_len, 1);
-            % iterative detection
+            % iterative detection - intial params
             dsc_ise_prev = zeros(self.oc.sig_len, 1);
-            dsc_ise_prev2 = zeros(self.oc.sig_len, 1);
+            dsc_ise_prev2 = zeros(self.pmax, 1);
             x_bse_prev = NaN;
             v_bse_prev = NaN;
-            x_dsc = zeros(self.oc.sig_len, 1);
             h_prev = zeros(self.pmax, 1);
             hv_prev = zeros(self.pmax, 1);
+            x_dsc = zeros(self.oc.sig_len, 1);
+            h_dsc = h;
+            hv_dsc = hv;
+            % iterative detection
             for iter_id = 1:self.iter_num
                 % build the channel
-                [H, Hv] = self.HtoDD(h, hv, hm);
+                [H, Hv] = self.HtoDD(h_dsc, hv_dsc, hm);
                 sigma2_H = sum((Hv.*Hvm)*self.Ed, 2);
                 % noise whitening
                 L = sqrt(sigma2_H + No);            % noise whitening matrix
@@ -307,10 +315,22 @@ classdef JPIC < dynamicprops
                     dsc_w = 1./sum(abs(Phi).^2).';
                     ise_dsc2 = abs(dsc_w.*(Phi'*y - Phi'*Phi*h)).^2;
                 end
-                % ies_dsc_sum2 = max(ise_dsc2 + dsc_ise_prev2, self.min_var);
-                % rho_dsc2 = dsc_ise_prev2./ies_dsc_sum2;
-                % h_dsc = (1 - rho_dsc).*h_prev + rho_dsc.*x_bse;
-                % hv_dsc = (1 - rho_dsc).*hv_prev + rho_dsc.*x_bse;
+                ies_dsc_sum2 = max(ise_dsc2 + dsc_ise_prev2, self.min_var);
+                rho_dsc2 = dsc_ise_prev2./ies_dsc_sum2;
+                if iter_id == 1
+                    h_dsc = h;
+                    hv_dsc = hv;
+                else
+                    h_dsc = (1 - rho_dsc2).*h_prev + rho_dsc2.*h;
+                    hv_dsc = (1 - rho_dsc2).*hv_prev + rho_dsc2.*hv;
+                end
+                % update statistics
+                h_prev = h_dsc;
+                hv_prev = hv_dsc;
+                % update statistics - DSC - instantaneous square error
+                dsc_ise_prev2 = ise_dsc2;
+                % h_dsc = h;
+                % hv_dsc = hv;
 
             end
             % only keep data part

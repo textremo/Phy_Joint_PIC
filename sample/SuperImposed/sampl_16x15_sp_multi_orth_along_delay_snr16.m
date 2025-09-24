@@ -16,7 +16,7 @@ p = 6;
 lmax = 3;
 kmax = 5;
 % JPIC config
-iter_num = 10;
+iter_num = 20;
 
 % init generalised variables
 % config
