@@ -1,6 +1,15 @@
-# from IPython import get_ipython
-# #get_ipython().magic('reset -f')
-# get_ipython().magic('clear')
+import sys
+import os
+# 获取当前文件所在目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 获取项目根目录（假设src在samp的同一级目录）
+project_root = os.path.join(current_dir, '..', '..')
+sys.path.append(os.path.join(project_root, 'src'))
+sys.path.append(os.path.join(project_root, 'util'))
+
+# 将src路径添加到Python路径
+
+
 
 import numpy as np
 import torch
@@ -8,7 +17,7 @@ from whatshow_phy_mod_otfs import OTFS, OTFSResGrid
 from OTFSConfig import OTFSConfig
 from CPE import CPE
 from JPIC import JPIC
-from Utils.utils import realH2Hfull
+from util import realH2Hfull
 
 torch.set_default_dtype(torch.float64)
 

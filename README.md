@@ -7,9 +7,13 @@ This repository offers a joint channel estimation and symbol detection implement
 * Install through `pip`
     ```sh
     pip install scipy
-    pip install whatshow-toolbox
-    pip install whatshow-phy-joint-pic
+    pip install textremo-toolbox
+    pip install textremo-phy-joint-pic
     ```
 * After Installation
     * `Matlab`: run `init` to load all paths
     * `Python`: run `init.py` to test whether all required packages are installed. 
+    
+## How to use
+* `CPE`: intially estimate the channel (`his`: delay varies slower than Doppler)
+* `JPIC`: jointly estimate symbols and channel (`his`: delay varies slower than Doppler)
