@@ -27,22 +27,141 @@
 \tableofcontents
 \newpage
 
+\section{Variational Bayes}
+For a telecommunication system, we have
+\begin{equation}
+y = Hx + z,
+\end{equation}
+where $y$ is the received signal, $x$ is the transmitted signal and $z\in \mathcal{CN}(0, \sigma^2)$. Please note that, 
+\begin{equation}
+x = x_p + x_d,
+\end{equation}
+where $x_p$ is the pilot and $x_d$ is data.
+\subsection{Bayes Interference}
+In the Rx, given the prior $p(y)$, we compute posterior distribution $p(y|x)$,
+\begin{equation}
+p(x|y) = \frac{p(x,y)}{p(y)} = \frac{\overbrace{p(y|x)}^{likelihood}\overbrace{p(x)}^{prior}}{\underbrace{p(y)}_{evidence}} = \frac{p(y|x)p(x)}{\int_y p(x,y)dy}
+\end{equation}
+Usually, we assume the evidence is 100\%, i.e., $p(y)=1$. Hence,
+\begin{equation}
+p(x|y) \propto \overbrace{p(y|x)}^{likelihood}\overbrace{p(x)}^{prior}
+\end{equation}
+Here, we need to choose \colorbox{yellow}{the likelihood and the prior}.
+\subsection{Variational Interference}
+However, the posterior may have no closed form, i.e., computing $p(x|y)$ is not feasible. Instead, we use a distribution $Q$ over the symbols $x$ to approximate $p(x|y)$, i.e.,
+\begin{equation}
+\begin{split}
+q^*(x) &= \mathop{\arg\min}\limits_{q(x)\in Q} KL(q(x) || p(x|y)) \\
+&= \mathop{\arg\min}\limits_{q(x)\in Q} \int_{x}q(x)\text{ln} \frac{q(x)}{p(x|y)}dx \\
+&= \mathop{\arg\min}\limits_{q(x)\in Q} -\int_{x}q(x)\text{ln} \frac{p(x|y)}{q(x)}dx
+\end{split}
+\end{equation}
+Here, $q^*(x)$ is the optimal $q(x)$ but \colorbox{yellow}{$p(x|y)$ is unknown}. Herefore,
+\begin{align}
+KL(q(x) || p(x|y)) &= -\int_{x}q(x)\text{ln} \frac{p(x|y)}{q(x)}dx \\
+&= \int_{x}q(x)\text{ln} q(x)dx - \int_{x}q(x)\text{ln}  p(x|y)dx \\ 
+&= \int_{x}q(x)\text{ln} q(x)dx - \int_{x}q(x)\text{ln}  \frac{p(x,y)}{p(y)}dx \\ 
+&= \int_{x}q(x)\text{ln} q(x)dx - \int_{x}q(x)\text{ln}p(x,y)dx + \int_{x}q(x)\text{ln}p(y)dx \\ 
+&= \int_{x}q(x)\text{ln} q(x)dx - \int_{x}q(x)\text{ln}p(x,y)dx + \text{ln}p(y)\int_{x}q(x)dx \\ 
+&= \underbrace{\mathbb{E}_q [\text{ln} q(x)] - \mathbb{E}_q[\text{ln}p(x,y)]}_{-ELBO} + \text{ln}p(y) \\
+&= -ELBO(q) + \text{ln}p(y)
+\label{eq:vb-vi-kl}
+\end{align}
+\subsubsection{ELBO}
+Here, ELBO is Evidence Lower Bound, i.e.,
+\begin{align}
+ELBO(q) &= \mathbb{E}_q[\text{ln}p(x,y)] - \mathbb{E}_q [\text{ln} q(x)] \label{eq:vb-vi-elbo}\\ 
+&= \int_x q(x)\text{ln}\frac{\overbrace{p(x,y)}^{known}}{q(x)}dx \\
+&= \int_x q(x)\text{ln}\frac{p(y|x)p(x)}{q(x)}dx
+\end{align}
+\eqref{eq:vb-vi-kl} can be rewritten as,
+\begin{equation}
+\begin{split}
+\underbrace{\text{ln}p(y)}_{\text{CONST}} &= ELBO(q) + \underbrace{KL(q(x) || p(x|y))}_{\geq 0} \\
+&\geq ELBO(q)
+\end{split}
+\end{equation}
+The minimizing KL can be taken as the maximizing ELBO, i.e.,
+\begin{equation}
+\begin{split}
+q^*(x) &= \mathop{\arg\min}\limits_{q(x)\in Q} KL(q(x) || p(x|y)) \\
+&= \mathop{\arg\max}\limits_{q(x)\in Q} ELBO(q) \\
+\end{split}
+\end{equation}
+\subsection{Mean Field}
+Now, we know the problem has been simplified as the maximizing ELBO. Here, we use the mean-field assumption, i.e.,
+\begin{equation}
+\begin{split}
+q(x) &= \prod_{i=1}^m q_i(x_i) \\
+\text{ln}q(x) &= \sum_{i=1}^m \text{ln}q_i(x_i) \\
+\mathbb{E}_q [\text{ln} q(x)] &=   \sum_{i=1}^m\mathbb{E}_{q_i} [\text{ln} q_i(x_i)] 
+\end{split}
+\label{eq:vb-mf}
+\end{equation}
+\subsubsection{Coordinate Ascent Optimization}
+In $q = [q_1, q_2, \cdots, q_j, \cdots, q_m]$, we fix others to update $q_j$, i.e.,
+\begin{equation}
+\begin{split}
+q_j^*(x_j) &= \mathop{\arg\min}\limits_{q_j} ELBO(q_j) \\
+&= \frac{\text{exp}\{\mathbb{E}_{q_{-j}}[\text{ln}p(x,y)]\}}{\int_{x_j}\text{exp}\{\mathbb{E}_{q_{-j}}[\text{ln}p(x,y)]\}dx_j}
+\end{split}
+\label{eq:vb-mf-cao}
+\end{equation}
+To prove \eqref{eq:vb-mf-cao}, we need to load \eqref{eq:vb-mf} into \eqref{eq:vb-vi-elbo},
+\begin{align}
+ELBO(q) &= \mathbb{E}_q[\text{ln}p(x,y)] - \mathbb{E}_q [\text{ln} q(x)] \\
+&= \int_{x}q(x)\text{ln}p(x,y)dx - \left[\mathbb{E}_{q_j} [\text{ln} q_j(x_j)] + \sum_{i\neq j}\mathbb{E}_{q_i} [\text{ln} q_i(x_i)]\right]
+\label{eq:vb-mf-cao-pf-1}
+\end{align}
+Here, $\sum_{i\neq j}\mathbb{E}_{q_i} [\text{ln} q_i(x_i)]$ can be seen as a constant because it is not related to $q_j$. Therefore, \eqref{eq:vb-mf-cao-pf-1} can be simplified as ($*_{-j}$ represents the other elements except $j$),
+\begin{align}
+ELBO(q) &= \int_{x}q(x)\text{ln}p(x,y)dx - \mathbb{E}_{q_j} [\text{ln} q_j(x_j)] + \text{const}\\
+&=\int_{x}q(x)\text{ln}p(x,y)dx - \int_{x_j}q(x_j)\text{ln} q_j(x_j)dx_j + \text{const}\\
+&=\int_{x_j}\int_{x_{-j}}q(x_j)q(x_{-j})\text{ln}p(x,y)dx_jdx_{-j} - \int_{x_j}q(x_j)\text{ln} q_j(x_j)dx_j + \text{const} \\
+&= \int_{x_j}q(x_j)\left[\int_{x_{-j}}q(x_{-j})\text{ln}p(x,y)dx_{-j}\right]dx_j - \int_{x_j}q(x_j)\text{ln} q_j(x_j)dx_j + \text{const} \\
+&= \int_{x_j}q(x_j)\mathbb{E}_{q_{-j}}[\text{ln}p(x,y)]dx_j - \int_{x_j}q(x_j)\text{ln} q_j(x_j)dx_j + \text{const}
+\label{eq:vb-mf-cao-pf-2}
+\end{align}
+\colorbox{yellow}{Here, we define a new distribution}
+\begin{equation}
+\begin{split}
+\text{ln}\tilde{p_j}(x_j,y) &= \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] + const \\
+\tilde{p_j}(x_j,y) &\propto \text{exp}\{\mathbb{E}_{q_{-j}}[\text{ln}p(x,y)]\}
+\end{split}
+\label{eq:vb-mf-cao-pf-dist}
+\end{equation}
+Here, we load \eqref{eq:vb-mf-cao-pf-dist} into \eqref{eq:vb-mf-cao-pf-2},
+\begin{align}
+ELBO(q) &= \int_{x_j}q(x_j)\text{ln}\tilde{p_j}(x_j,y)dx_j - \int_{x_j}q(x_j)\text{ln} q_j(x_j)dx_j + \text{const} \\
+&= \int_{x_j}q(x_j)\text{ln}\frac{\tilde{p_j}(x_j,y)}{\text{ln} q_j(x_j)}dx_j+ \text{const} \\
+&= -KL(q_j(x_j) || \tilde{p_j}(x_j,y))
+\end{align}
+The KL divergence reaches the minimun when 
+\begin{equation}
+\begin{split}
+q_{x_j}^* &= \tilde{p_j}(x_j,y) \\
+& \propto \text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} \\
+&= \frac{\text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} }{\int_{x_j} \text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} dx_j}
+\end{split}
+\end{equation}
+\colorbox{yellow}{$\int_{x_j} \text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} dx_j$是为了让总体概率为1}
+\subsection{Algorithm Structure}
+The structure is given as below:
+\begin{breakablealgorithm}
+	\begin{algorithmic}[1] %每行显示行号
+		\State initialize $q_j(x_j)$ for $j\in{1,\cdots,m}$
+		\While{ELBO not converge}
+			\For{$j\in{1,\cdots,m}$}
+				\State $q_{x_j}^*= \frac{\text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} }{\int_{x_j} \text{exp}\{ \mathbb{E}_{q_{-j}}[\text{ln}p(x,y)] \} dx_j}$
+			\EndFor
+			\State ELBO(q)= $\mathbb{E}_q[\text{ln}p(x,y)] - \mathbb{E}_q [\text{ln} q(x)] $
+		\EndWhile
+		\State \Return{$q(x)$}
+	\end{algorithmic}
+\end{breakablealgorithm}
 
+\section{Variational Bayes in JCHESD}
 
-%\newpage
-%\begin{thebibliography}{99}
-%\bibitem{einstein1905} 
-%A. Einstein, 
-%\textit{On the Electrodynamics of Moving Bodies}, 
-%Annalen der Physik, 1905.
-%
-%\bibitem{knuth1984} 
-%D. Knuth, 
-%\textit{The TeXbook}, 
-%Addison-Wesley, 1984.
-%\end{thebibliography}
-
-%\end{CJK} % 不支持中文页眉而放弃
 \newpage
 \bibliographystyle{IEEEtran}
 \bibliography{../reference}
