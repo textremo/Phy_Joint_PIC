@@ -1,0 +1,99 @@
+% general packages
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{mathtools}  % math tools
+\usepackage{caption}    % support subfigure
+\usepackage{subcaption} % support subfigure
+\usepackage{placeins}   % support FloatBarrier
+\usepackage{listings}   % support codes
+\usepackage{color}      % support color
+\usepackage{amsmath} 	% support multiple lines
+\usepackage{amsfonts,amssymb} % support holo characters
+\usepackage[10pt]{extsizes}
+%\documentstyle[nips14submit_09,times,art10]{article} % For LaTeX 2.09
+
+%-----------------------------------------------
+% special packages
+
+\usepackage[numbers,sort&compress]{natbib}		% 文献引用连号时[1,2,3]变成[1-3]
+\usepackage{fancyhdr} 					% 加载fancyhdr宏包
+\usepackage[hidelinks]{hyperref}        % 支持超链接（隐藏超链接效果）
+\usepackage{multirow} 					% 多行表格
+\usepackage{float} 						% 图片禁止浮动
+\usepackage{geometry}
+%\usepackage{CJKutf8} 					% 支持中文——方案1（不支持中文页眉而放弃）
+\usepackage[UTF8]{ctex}  				% 支持中文——方案2
+\usepackage{makecell} 					% 单单元格调整
+\usepackage{longtable} 					% 表格——跨页面
+\usepackage{tabularx} 					% 表格——自动调整列宽
+\usepackage{array} 						% 表格——用于 \newcolumntype
+\usepackage{makecell} 					% 表格——独立表格
+\usepackage[table]{xcolor}  			% 加载xcolor宏包，启用表格颜色功能
+\usepackage{pifont} 					% 圆圈1-20: \ding{172} -\ding{181} 
+\usepackage{algorithm, algpseudocode} 	% 伪代码
+\usepackage{underscore} 				% 下划线
+\usepackage{ulem} 					% 文字划线等
+
+%-----------------------------------------------
+% page settings
+\geometry{a4paper,left=2cm,right=2cm,top=2cm,bottom=2cm}
+\renewcommand{\baselinestretch}{1.2}
+\setlength{\parindent}{0pt} % 设置段落缩进为 0
+% 定义页眉风格
+\pagestyle{fancy} 
+\fancyhead[L]{} % 设置左页眉
+\fancyhead[C]{Joint Channle Estimation \& Symbol Detection} % 设置中页眉
+\fancyhead[R]{} % 设置右页眉
+\renewcommand{\headrulewidth}{0.4pt} % 设置页眉线宽度（可选）
+
+
+%-----------------------------------------------
+% set math notations
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+% paths 
+\graphicspath{{../../img/}}
+% define color
+\definecolor{darkred}{rgb}{0.6,0.0,0.0}
+\definecolor{darkgreen}{rgb}{0,0.50,0}
+\definecolor{lightblue}{rgb}{0.0,0.42,0.91}
+\definecolor{orange}{rgb}{0.99,0.48,0.13}
+\definecolor{grass}{rgb}{0.18,0.80,0.18}
+\definecolor{pink}{rgb}{0.97,0.15,0.45}
+\definecolor{lightgreen}{RGB}{220, 255, 220}  % 浅绿色
+\definecolor{lightred}{RGB}{255, 220, 220}    % 浅红色
+
+%-----------------------------------------------
+% 其他自定义设置
+% 定义不同宽度的列类型
+%\newcolumntype{TBX}{>{\hsize=1\hsize\centering\arraybackslash}X}
+%\newcolumntype{MyCol}{>{\hsize=1.5\hsize\centering\arraybackslash}X}
+%\newcolumntype{TBL}{>{\hsize=2\hsize\arraybackslash}X}
+% 允许跨页
+\allowdisplaybreaks[4]
+% 设置标题编号深度，使其出现在目录中（如果需要）
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4} % 如果你也希望它出现在目录中
+% 伪代码
+% 伪代码——跨行
+\makeatletter
+\newenvironment{breakablealgorithm}
+  {% \begin{breakablealgorithm}
+   \begin{center}
+     \refstepcounter{algorithm}% New algorithm
+     \hrule height.8pt depth0pt \kern2pt% \@fs@pre for \@fs@ruled
+     \renewcommand{\caption}[2][\relax]{% Make a new \caption
+       {\raggedright\textbf{\ALG@name~\thealgorithm} ##2\par}%
+       \ifx\relax##1\relax % #1 is \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##2}%
+       \else % #1 is not \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##1}%
+       \fi
+       \kern2pt\hrule\kern2pt
+     }
+  }{% \end{breakablealgorithm}
+     \kern2pt\hrule\relax% \@fs@post for \@fs@ruled
+   \end{center}
+  }
+\makeatother
+% 伪代码——注释
+\renewcommand{\algorithmiccomment}[1]{\hfill // #1}
