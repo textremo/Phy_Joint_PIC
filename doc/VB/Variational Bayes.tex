@@ -27,6 +27,9 @@
 \tableofcontents
 \newpage
 
+\section{Gamma Distribution}
+
+
 \section{Variational Bayes}
 For a telecommunication system, we have
 \begin{equation}
@@ -136,7 +139,7 @@ ELBO(q) &= \int_{x_j}q(x_j)\text{ln}\tilde{p_j}(x_j,y)dx_j - \int_{x_j}q(x_j)\te
 &= \int_{x_j}q(x_j)\text{ln}\frac{\tilde{p_j}(x_j,y)}{\text{ln} q_j(x_j)}dx_j+ \text{const} \\
 &= -KL(q_j(x_j) || \tilde{p_j}(x_j,y))
 \end{align}
-The KL divergence reaches the minimun when 
+The KL divergence reaches the minimum when 
 \begin{equation}
 \begin{split}
 q_{x_j}^* &= \tilde{p_j}(x_j,y) \\
@@ -160,7 +163,58 @@ The structure is given as below:
 	\end{algorithmic}
 \end{breakablealgorithm}
 
-\section{Variational Bayes in JCHESD}
+\section{Variational Bayes in JCESD}
+\subsection{Symbol Detection}
+In this section, \colorbox{yellow}{we assume the channel is known}. The target is to find the channel and the symbol to maximize the posterior, i.e.,
+\begin{equation}
+\begin{split}
+p(x; y, H, \sigma^2) &= \mathop{\arg\max}\limits_{x\in \Omega}  p(y|x; H, \sigma^2) p(x)
+\end{split}
+\end{equation}
+Here, we use a 
+
+\subsection{Joint Method}
+We shall look at some examples to solve this problem
+
+\begin{align}
+||y_p-\phi_ph||^2 &= (y_p -\phi_ph)^H(y_p -\phi_ph) \\
+&= y_p^Hy_p - y_p^H\phi_ph - (\phi_ph)^Hy_p  + (\phi_ph)^H(\phi_ph) \\
+&= y_p^Hy_p - y_p^H\phi_ph - (\phi_ph)^Hy_p  + h^H\phi_p^H\phi_p h
+\label{eq:jcesd-sbl-ce-alpha-0}
+\end{align}
+Here, 
+\[
+(y_p^H\phi_ph)^H = (\phi_ph)^Hy_p
+\]
+Therefore,
+\[
+y_p^H\phi_ph + (\phi_ph)^Hy_p = 2Re\{y_p^H \phi_p h\} 
+\]
+\[
+||y_p-\phi_ph||^2 = y_p^Hy_p - 2Re\{y_p^H \phi_p h\}  + h^H\phi_p^H\phi_p h
+\]
+Now, we do the expectation for $||y_p-\phi_ph||^2$ on $h$,
+\begin{align}
+<||y_p-\phi_ph||^2>_h &= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + <h^H\phi_p^H\phi_p h>_h\\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + <tr(h^H\phi_p^H\phi_p h)>_h \\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + <tr(\phi_p^H\phi_p hh^H)>_h \\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + tr(\phi_p^H\phi_p <hh^H>_h) \\
+\end{align}
+The covariance of $h$ is, 
+\[
+\Sigma_h = <hh^H> - u_h u_h^H
+\]
+\[
+<hh^H> = \Sigma_h + u_h u_h^H
+\]
+Therefore,
+\begin{align}
+<||y_p-\phi_ph||^2>_h &= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + tr(\phi_p^H\phi_p (\Sigma_h + u_h u_h^H)) \\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + tr(\phi_p^H\phi_p \Sigma_h) + tr(\phi_p^H\phi_p u_h u_h^H) \\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + tr(\phi_p^H\phi_p \Sigma_h) + tr(u_h^H\phi_p^H\phi_p u_h) \\
+&= y_p^Hy_p - 2Re\{y_p^H \phi_p u_h\}  + u_h^H\phi_p^H\phi_p u_h + tr(\phi_p^H\phi_p \Sigma_h) \\
+&= ||y_p - \phi_p u_h||^2 + tr(\phi_p \Sigma_h\phi_p^H)
+\end{align}
 
 \newpage
 \bibliographystyle{IEEEtran}
